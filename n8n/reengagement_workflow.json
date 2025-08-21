@@ -1,0 +1,465 @@
+{
+  "name": "Lead Reengagement",
+  "nodes": [
+    {
+      "parameters": {
+        "rule": {
+          "interval": [
+            {
+              "field": "hour",
+              "value": 9
+            }
+          ]
+        }
+      },
+      "id": "daily-trigger",
+      "name": "Daily Trigger - 9AM",
+      "type": "n8n-nodes-base.cron",
+      "typeVersion": 1,
+      "position": [240, 300]
+    },
+    {
+      "parameters": {
+        "url": "{{ $env.SUPABASE_URL }}/rest/v1/leads",
+        "authentication": "headerAuth",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "apikey",
+              "value": "{{ $env.SUPABASE_SERVICE_KEY }}"
+            },
+            {
+              "name": "Authorization",
+              "value": "Bearer {{ $env.SUPABASE_SERVICE_KEY }}"
+            }
+          ]
+        },
+        "sendQuery": true,
+        "queryParameters": {
+          "parameters": [
+            {
+              "name": "status",
+              "value": "in.('novo','em_conversa')"
+            },
+            {
+              "name": "updated_at",
+              "value": "lt.{{ new Date(Date.now() - 24*60*60*1000).toISOString() }}"
+            },
+            {
+              "name": "select",
+              "value": "*,sessions!inner(*)"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "id": "get-stale-leads",
+      "name": "Get Stale Leads (24h+)",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.1,
+      "position": [460, 300]
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict"
+          },
+          "conditions": [
+            {
+              "leftValue": "={{ $json.length }}",
+              "rightValue": 0,
+              "operator": {
+                "type": "number",
+                "operation": "gt"
+              }
+            }
+          ],
+          "combinator": "and"
+        }
+      },
+      "id": "check-leads-exist",
+      "name": "Check if Leads Exist",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 1,
+      "position": [680, 300]
+    },
+    {
+      "parameters": {
+        "fieldToSplitOut": "",
+        "options": {}
+      },
+      "id": "split-leads",
+      "name": "Split Into Items",
+      "type": "n8n-nodes-base.itemLists",
+      "typeVersion": 3,
+      "position": [900, 240]
+    },
+    {
+      "parameters": {
+        "jsCode": "// Determinar tipo de reengajamento baseado no tempo\nconst lead = $json;\nconst lastUpdate = new Date(lead.updated_at);\nconst now = new Date();\nconst hoursAgo = Math.floor((now - lastUpdate) / (1000 * 60 * 60));\n\nlet reengagementType;\nlet message;\n\nif (hoursAgo >= 72) {\n  // 72h+ - Última tentativa\n  reengagementType = '72h_final';\n  message = `Olá ${lead.name}! 👋\\n\\nNotei que não conseguimos finalizar nossa conversa sobre seus investimentos. Como última tentativa, gostaria de saber se ainda tem interesse em receber orientação especializada?\\n\\nSe preferir, posso disponibilizar alguns materiais gratuitos sobre investimentos que podem ser úteis. O que acha?`;\n} else if (hoursAgo >= 24) {\n  // 24-72h - Reengajamento gentil\n  reengagementType = '24h_gentle';\n  message = `Oi ${lead.name}! 😊\\n\\nVi que começamos uma conversa sobre seus investimentos, mas ficou pela metade. Tudo bem por aí?\\n\\nSe quiser, posso continuar te ajudando a encontrar as melhores opções para seu perfil. Quando for melhor para você?`;\n}\n\nreturn {\n  ...lead,\n  reengagement: {\n    type: reengagementType,\n    hours_ago: hoursAgo,\n    message: message\n  }\n};"
+      },
+      "id": "prepare-reengagement",
+      "name": "Prepare Reengagement",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [1120, 240]
+    },
+    {
+      "parameters": {
+        "url": "{{ $env.FLASK_API_URL }}/chat/send-message",
+        "authentication": "headerAuth",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "Content-Type",
+              "value": "application/json"
+            }
+          ]
+        },
+        "sendBody": true,
+        "bodyParameters": {
+          "parameters": [
+            {
+              "name": "session_id",
+              "value": "={{ $json.sessions[0].id }}"
+            },
+            {
+              "name": "message",
+              "value": "={{ $json.reengagement.message }}"
+            },
+            {
+              "name": "is_ai",
+              "value": true
+            },
+            {
+              "name": "reengagement_type",
+              "value": "={{ $json.reengagement.type }}"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "id": "send-reengagement",
+      "name": "Send Reengagement Message",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.1,
+      "position": [1340, 240],
+      "credentials": {
+        "httpHeaderAuth": {
+          "id": "flask-api-auth",
+          "name": "Flask API Auth"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict"
+          },
+          "conditions": [
+            {
+              "leftValue": "={{ $json.reengagement.type }}",
+              "rightValue": "72h_final",
+              "operator": {
+                "type": "string",
+                "operation": "equals"
+              }
+            }
+          ],
+          "combinator": "and"
+        }
+      },
+      "id": "check-final-attempt",
+      "name": "Check if Final Attempt",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 1,
+      "position": [1560, 240]
+    },
+    {
+      "parameters": {
+        "url": "{{ $env.SUPABASE_URL }}/rest/v1/leads",
+        "authentication": "headerAuth",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "Content-Type",
+              "value": "application/json"
+            },
+            {
+              "name": "apikey",
+              "value": "{{ $env.SUPABASE_SERVICE_KEY }}"
+            },
+            {
+              "name": "Authorization",
+              "value": "Bearer {{ $env.SUPABASE_SERVICE_KEY }}"
+            }
+          ]
+        },
+        "sendQuery": true,
+        "queryParameters": {
+          "parameters": [
+            {
+              "name": "id",
+              "value": "eq.{{ $('Prepare Reengagement').item.json.id }}"
+            }
+          ]
+        },
+        "sendBody": true,
+        "bodyParameters": {
+          "parameters": [
+            {
+              "name": "status",
+              "value": "desqualificado"
+            },
+            {
+              "name": "updated_at",
+              "value": "{{ new Date().toISOString() }}"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "id": "mark-as-disqualified",
+      "name": "Mark as Disqualified",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.1,
+      "position": [1780, 180]
+    },
+    {
+      "parameters": {
+        "url": "{{ $env.SUPABASE_URL }}/rest/v1/audit_events",
+        "authentication": "headerAuth",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "Content-Type",
+              "value": "application/json"
+            },
+            {
+              "name": "apikey",
+              "value": "{{ $env.SUPABASE_SERVICE_KEY }}"
+            },
+            {
+              "name": "Authorization",
+              "value": "Bearer {{ $env.SUPABASE_SERVICE_KEY }}"
+            }
+          ]
+        },
+        "sendBody": true,
+        "bodyParameters": {
+          "parameters": [
+            {
+              "name": "tenant_id",
+              "value": "={{ $('Prepare Reengagement').item.json.tenant_id }}"
+            },
+            {
+              "name": "action",
+              "value": "reengagement_attempt"
+            },
+            {
+              "name": "resource_type",
+              "value": "lead"
+            },
+            {
+              "name": "resource_id",
+              "value": "={{ $('Prepare Reengagement').item.json.id }}"
+            },
+            {
+              "name": "details",
+              "value": {
+                "workflow": "reengagement",
+                "type": "={{ $('Prepare Reengagement').item.json.reengagement.type }}",
+                "hours_ago": "={{ $('Prepare Reengagement').item.json.reengagement.hours_ago }}",
+                "message_sent": true,
+                "final_attempt": "={{ $('Prepare Reengagement').item.json.reengagement.type === '72h_final' }}"
+              }
+            }
+          ]
+        },
+        "options": {}
+      },
+      "id": "log-reengagement",
+      "name": "Log Reengagement",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.1,
+      "position": [1780, 300]
+    },
+    {
+      "parameters": {
+        "mode": "combine",
+        "combineBy": "combineAll",
+        "options": {}
+      },
+      "id": "merge-results",
+      "name": "Merge Results",
+      "type": "n8n-nodes-base.merge",
+      "typeVersion": 2.1,
+      "position": [2000, 240]
+    },
+    {
+      "parameters": {
+        "jsCode": "// Resumo da execução\nconst items = $input.all();\nconst processedCount = items.length;\nconst finalAttempts = items.filter(item => \n  item.json.reengagement && item.json.reengagement.type === '72h_final'\n).length;\nconst gentleReminders = processedCount - finalAttempts;\n\nreturn {\n  execution_summary: {\n    date: new Date().toISOString(),\n    total_processed: processedCount,\n    gentle_reminders: gentleReminders,\n    final_attempts: finalAttempts,\n    workflow: 'reengagement'\n  }\n};"
+      },
+      "id": "execution-summary",
+      "name": "Execution Summary",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [2220, 240]
+    }
+  ],
+  "connections": {
+    "Daily Trigger - 9AM": {
+      "main": [
+        [
+          {
+            "node": "Get Stale Leads (24h+)",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Get Stale Leads (24h+)": {
+      "main": [
+        [
+          {
+            "node": "Check if Leads Exist",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Check if Leads Exist": {
+      "main": [
+        [
+          {
+            "node": "Split Into Items",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Split Into Items": {
+      "main": [
+        [
+          {
+            "node": "Prepare Reengagement",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Prepare Reengagement": {
+      "main": [
+        [
+          {
+            "node": "Send Reengagement Message",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Send Reengagement Message": {
+      "main": [
+        [
+          {
+            "node": "Check if Final Attempt",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Check if Final Attempt": {
+      "main": [
+        [
+          {
+            "node": "Mark as Disqualified",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "Log Reengagement",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Log Reengagement",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Mark as Disqualified": {
+      "main": [
+        [
+          {
+            "node": "Merge Results",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Log Reengagement": {
+      "main": [
+        [
+          {
+            "node": "Merge Results",
+            "type": "main",
+            "index": 1
+          }
+        ]
+      ]
+    },
+    "Merge Results": {
+      "main": [
+        [
+          {
+            "node": "Execution Summary",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "active": true,
+  "settings": {
+    "executionOrder": "v1"
+  },
+  "versionId": "1",
+  "meta": {
+    "templateCredsSetupCompleted": true
+  },
+  "id": "reengagement-workflow",
+  "tags": [
+    {
+      "createdAt": "2025-08-18T22:00:00.000Z",
+      "updatedAt": "2025-08-18T22:00:00.000Z",
+      "id": "automation",
+      "name": "Automation"
+    }
+  ]
+}
+
+
+
+

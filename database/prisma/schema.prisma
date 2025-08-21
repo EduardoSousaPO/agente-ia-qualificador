@@ -1,0 +1,157 @@
+// This is your Prisma schema file,
+// learn more about it in the docs: https://pris.ly/d/prisma-schema
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider  = "postgresql"
+  url       = env("DATABASE_URL")
+  directUrl = env("DIRECT_URL")
+}
+
+// Tenants (Multi-tenancy)
+model Tenant {
+  id        String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  name      String   @db.VarChar(255)
+  domain    String?  @unique @db.VarChar(255)
+  settings  Json     @default("{}")
+  createdAt DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt DateTime @default(now()) @updatedAt @map("updated_at") @db.Timestamptz(6)
+
+  // Relations
+  users           User[]
+  leads           Lead[]
+  auditEvents     AuditEvent[]
+
+  @@map("tenants")
+}
+
+// Usuários do sistema
+model User {
+  id        String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  tenantId  String   @map("tenant_id") @db.Uuid
+  email     String   @unique @db.VarChar(255)
+  role      String   @default("operator") @db.VarChar(50) // admin, closer, operator
+  name      String?  @db.VarChar(255)
+  createdAt DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+
+  // Relations
+  tenant      Tenant       @relation(fields: [tenantId], references: [id])
+  meetings    Meeting[]
+  auditEvents AuditEvent[]
+
+  @@map("users")
+}
+
+// Leads do sistema
+model Lead {
+  id             String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  tenantId       String   @map("tenant_id") @db.Uuid
+  name           String   @db.VarChar(255)
+  email          String?  @db.VarChar(255)
+  phone          String   @db.VarChar(50)
+  origem         String?  @db.VarChar(100) // youtube, newsletter, manual, inbound
+  inseridoManual Boolean  @default(false) @map("inserido_manual")
+  tags           Json     @default("[]")
+  status         String   @default("novo") @db.VarChar(50) // novo, em_conversa, qualificado, desqualificado
+  score          Int      @default(0)
+  createdAt      DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt      DateTime @default(now()) @updatedAt @map("updated_at") @db.Timestamptz(6)
+
+  // Relations
+  tenant         Tenant          @relation(fields: [tenantId], references: [id])
+  sessions       Session[]
+  qualificacoes  Qualificacao[]
+  meetings       Meeting[]
+
+  @@map("leads")
+}
+
+// Sessões de conversa
+model Session {
+  id          String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  leadId      String   @map("lead_id") @db.Uuid
+  status      String   @default("ativa") @db.VarChar(50) // ativa, finalizada, pausada
+  currentStep String?  @map("current_step") @db.VarChar(100)
+  context     Json     @default("{}")
+  createdAt   DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt   DateTime @default(now()) @updatedAt @map("updated_at") @db.Timestamptz(6)
+
+  // Relations
+  lead     Lead      @relation(fields: [leadId], references: [id])
+  messages Message[]
+
+  @@map("sessions")
+}
+
+// Mensagens das conversas
+model Message {
+  id          String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  sessionId   String   @map("session_id") @db.Uuid
+  direction   String   @db.VarChar(10) // inbound, outbound
+  content     String   @db.Text
+  messageType String   @default("text") @map("message_type") @db.VarChar(50)
+  twilioSid   String?  @map("twilio_sid") @db.VarChar(255)
+  createdAt   DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+
+  // Relations
+  session Session @relation(fields: [sessionId], references: [id])
+
+  @@map("messages")
+}
+
+// Dados de qualificação
+model Qualificacao {
+  id                    String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  leadId                String   @map("lead_id") @db.Uuid
+  patrimonioFaixa       String?  @map("patrimonio_faixa") @db.VarChar(100)
+  objetivo              String?  @db.Text
+  urgencia              String?  @db.VarChar(50)
+  interesseEspecialista Boolean? @map("interesse_especialista")
+  scoreFinal            Int?     @map("score_final")
+  observacoes           String?  @db.Text
+  createdAt             DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+
+  // Relations
+  lead Lead @relation(fields: [leadId], references: [id])
+
+  @@map("qualificacoes")
+}
+
+// Agendamentos/Reuniões
+model Meeting {
+  id                String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  leadId            String    @map("lead_id") @db.Uuid
+  closerId          String?   @map("closer_id") @db.Uuid
+  horarioSugestao1  DateTime? @map("horario_sugestao_1") @db.Timestamptz(6)
+  horarioSugestao2  DateTime? @map("horario_sugestao_2") @db.Timestamptz(6)
+  status            String    @default("pendente") @db.VarChar(50) // pendente, confirmado, realizado
+  createdAt         DateTime  @default(now()) @map("created_at") @db.Timestamptz(6)
+
+  // Relations
+  lead   Lead  @relation(fields: [leadId], references: [id])
+  closer User? @relation(fields: [closerId], references: [id])
+
+  @@map("meetings")
+}
+
+// Log de auditoria
+model AuditEvent {
+  id           String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  tenantId     String   @map("tenant_id") @db.Uuid
+  userId       String?  @map("user_id") @db.Uuid
+  action       String   @db.VarChar(100)
+  resourceType String?  @map("resource_type") @db.VarChar(100)
+  resourceId   String?  @map("resource_id") @db.Uuid
+  details      Json     @default("{}")
+  createdAt    DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+
+  // Relations
+  tenant Tenant @relation(fields: [tenantId], references: [id])
+  user   User?  @relation(fields: [userId], references: [id])
+
+  @@map("audit_events")
+}
+

@@ -1,0 +1,282 @@
+{
+  "name": "Lead Intake & First Message",
+  "nodes": [
+    {
+      "parameters": {
+        "httpMethod": "POST",
+        "path": "intake-lead",
+        "options": {}
+      },
+      "id": "webhook-intake",
+      "name": "Webhook - Intake Lead",
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 1,
+      "position": [240, 300],
+      "webhookId": "intake-lead"
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict"
+          },
+          "conditions": [
+            {
+              "leftValue": "={{ $json.name }}",
+              "rightValue": "",
+              "operator": {
+                "type": "string",
+                "operation": "notEmpty"
+              }
+            },
+            {
+              "leftValue": "={{ $json.phone }}",
+              "rightValue": "",
+              "operator": {
+                "type": "string",
+                "operation": "notEmpty"
+              }
+            },
+            {
+              "leftValue": "={{ $json.tenant_id }}",
+              "rightValue": "",
+              "operator": {
+                "type": "string",
+                "operation": "notEmpty"
+              }
+            }
+          ],
+          "combinator": "and"
+        }
+      },
+      "id": "validate-data",
+      "name": "Validate Data",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 1,
+      "position": [460, 300]
+    },
+    {
+      "parameters": {
+        "url": "{{ $env.FLASK_API_URL }}/intake/lead",
+        "authentication": "headerAuth",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "Content-Type",
+              "value": "application/json"
+            }
+          ]
+        },
+        "sendBody": true,
+        "bodyParameters": {
+          "parameters": [
+            {
+              "name": "name",
+              "value": "={{ $json.name }}"
+            },
+            {
+              "name": "phone",
+              "value": "={{ $json.phone }}"
+            },
+            {
+              "name": "email",
+              "value": "={{ $json.email }}"
+            },
+            {
+              "name": "tenant_id",
+              "value": "={{ $json.tenant_id }}"
+            },
+            {
+              "name": "origem",
+              "value": "={{ $json.origem || 'n8n_webhook' }}"
+            },
+            {
+              "name": "tags",
+              "value": "={{ $json.tags || [] }}"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "id": "create-lead-flask",
+      "name": "Create Lead in Flask",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.1,
+      "position": [680, 240],
+      "credentials": {
+        "httpHeaderAuth": {
+          "id": "flask-api-auth",
+          "name": "Flask API Auth"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "url": "{{ $env.SUPABASE_URL }}/rest/v1/audit_events",
+        "authentication": "headerAuth",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "Content-Type",
+              "value": "application/json"
+            },
+            {
+              "name": "apikey",
+              "value": "{{ $env.SUPABASE_SERVICE_KEY }}"
+            },
+            {
+              "name": "Authorization",
+              "value": "Bearer {{ $env.SUPABASE_SERVICE_KEY }}"
+            }
+          ]
+        },
+        "sendBody": true,
+        "bodyParameters": {
+          "parameters": [
+            {
+              "name": "tenant_id",
+              "value": "={{ $json.tenant_id }}"
+            },
+            {
+              "name": "action",
+              "value": "lead_intake_n8n"
+            },
+            {
+              "name": "resource_type",
+              "value": "lead"
+            },
+            {
+              "name": "resource_id",
+              "value": "={{ $('Create Lead in Flask').item.json.lead.id }}"
+            },
+            {
+              "name": "details",
+              "value": {
+                "origem": "={{ $json.origem || 'n8n_webhook' }}",
+                "workflow": "intake_workflow",
+                "success": true
+              }
+            }
+          ]
+        },
+        "options": {}
+      },
+      "id": "log-audit",
+      "name": "Log Audit Event",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.1,
+      "position": [900, 240]
+    },
+    {
+      "parameters": {
+        "respondWith": "json",
+        "responseBody": {
+          "success": true,
+          "message": "Lead processado com sucesso",
+          "lead_id": "={{ $('Create Lead in Flask').item.json.lead.id }}",
+          "whatsapp_sent": "={{ $('Create Lead in Flask').item.json.whatsapp_sent }}"
+        }
+      },
+      "id": "success-response",
+      "name": "Success Response",
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1,
+      "position": [1120, 240]
+    },
+    {
+      "parameters": {
+        "respondWith": "json",
+        "responseBody": {
+          "success": false,
+          "error": "Dados inválidos. Nome, telefone e tenant_id são obrigatórios."
+        },
+        "options": {
+          "responseCode": 400
+        }
+      },
+      "id": "error-response",
+      "name": "Error Response",
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1,
+      "position": [680, 360]
+    }
+  ],
+  "connections": {
+    "Webhook - Intake Lead": {
+      "main": [
+        [
+          {
+            "node": "Validate Data",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Validate Data": {
+      "main": [
+        [
+          {
+            "node": "Create Lead in Flask",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Error Response",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Create Lead in Flask": {
+      "main": [
+        [
+          {
+            "node": "Log Audit Event",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Log Audit Event": {
+      "main": [
+        [
+          {
+            "node": "Success Response",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "active": true,
+  "settings": {
+    "executionOrder": "v1"
+  },
+  "versionId": "1",
+  "meta": {
+    "templateCredsSetupCompleted": true
+  },
+  "id": "intake-workflow",
+  "tags": [
+    {
+      "createdAt": "2025-08-18T22:00:00.000Z",
+      "updatedAt": "2025-08-18T22:00:00.000Z",
+      "id": "lead-management",
+      "name": "Lead Management"
+    }
+  ]
+}
+
+
+
+

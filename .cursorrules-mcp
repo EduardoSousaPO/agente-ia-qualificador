@@ -1,0 +1,11 @@
+# Configuração MCP para N8N
+# Este arquivo configura o Model Context Protocol para integração com N8N
+
+[n8n-mcp]
+command = "npx"
+args = ["n8n-mcp"]
+env = {
+  "N8N_API_URL" = "https://your-workspace.app.n8n.cloud",
+  "N8N_API_KEY" = "your-n8n-api-key",
+  "N8N_VERSION" = "1.82.3"
+}
