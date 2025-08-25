@@ -6,6 +6,7 @@ import { DashboardStats } from '@/components/dashboard/dashboard-stats'
 import { RecentLeads } from '@/components/dashboard/recent-leads'
 import { LeadsChart } from '@/components/dashboard/leads-chart'
 import { ActiveConversations } from '@/components/dashboard/active-conversations'
+import { QualificationScenarios } from '@/components/dashboard/qualification-scenarios'
 import { useEffect, useState } from 'react'
 import { api } from '@/lib/api'
 import { DashboardStats as DashboardStatsType, Lead } from '@/types'
@@ -126,6 +127,9 @@ export default function Dashboard() {
           </div>
           <RecentLeads leads={recentLeads} />
         </div>
+
+        {/* Qualification Scenarios */}
+        <QualificationScenarios />
       </div>
     </DashboardLayout>
   )

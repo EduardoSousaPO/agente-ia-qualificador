@@ -2,7 +2,8 @@ import os
 from datetime import timedelta
 from dotenv import load_dotenv
 
-load_dotenv()
+# Carregar configurações do backend
+load_dotenv('.env')  # Arquivo copiado pelo INICIAR_SISTEMA.bat
 
 class Config:
     """Configuração base da aplicação Flask"""

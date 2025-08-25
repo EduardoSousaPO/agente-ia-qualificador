@@ -10,6 +10,10 @@ import {
   Cog6ToothIcon,
   ChartBarIcon,
   DocumentArrowUpIcon,
+  AcademicCapIcon,
+  BookOpenIcon,
+  CheckBadgeIcon,
+  BuildingOfficeIcon,
 } from '@heroicons/react/24/outline'
 import { usePathname } from 'next/navigation'
 import Link from 'next/link'
@@ -25,6 +29,10 @@ const navigation = [
   { name: 'Dashboard', href: '/', icon: HomeIcon },
   { name: 'Leads', href: '/leads', icon: UsersIcon },
   { name: 'Conversas', href: '/conversations', icon: ChatBubbleLeftRightIcon },
+  { name: 'Empresa & Membros', href: '/settings/empresa', icon: BuildingOfficeIcon },
+  { name: 'Base de Conhecimento', href: '/settings/knowledge', icon: BookOpenIcon },
+  { name: 'Validação do Agente', href: '/settings/feedback', icon: CheckBadgeIcon },
+  { name: 'Exemplos', href: '/exemplos', icon: AcademicCapIcon },
   { name: 'Upload CSV', href: '/upload', icon: DocumentArrowUpIcon },
   { name: 'Relatórios', href: '/reports', icon: ChartBarIcon },
   { name: 'Configurações', href: '/settings', icon: Cog6ToothIcon },

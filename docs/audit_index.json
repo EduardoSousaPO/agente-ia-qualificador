@@ -1,0 +1,336 @@
+{
+  "audit_metadata": {
+    "date": "2025-01-25",
+    "time": "16:30:00",
+    "version": "2.0.0",
+    "auditor": "Sistema Automatizado de Auditoria",
+    "scope": "Projeto Completo - Agente Qualificador"
+  },
+  "repository_structure": {
+    "total_files": 156,
+    "total_directories": 42,
+    "main_directories": [
+      "frontend/",
+      "backend/", 
+      "database/",
+      "n8n/",
+      "docs/",
+      "scripts/",
+      "tests/"
+    ]
+  },
+  "frontend": {
+    "framework": "Next.js 15.4.7",
+    "language": "TypeScript 5.6.3",
+    "styling": "Tailwind CSS 3.4.17",
+    "routes": [
+      "/",
+      "/dashboard", 
+      "/leads",
+      "/conversations",
+      "/conversations/[id]",
+      "/settings",
+      "/settings/knowledge",
+      "/settings/feedback",
+      "/exemplos",
+      "/login"
+    ],
+    "main_components": [
+      "dashboard-stats.tsx",
+      "leads-list.tsx", 
+      "chat-interface.tsx",
+      "conversation-simulator.tsx",
+      "upload-csv-modal.tsx"
+    ],
+    "dependencies_count": 18,
+    "dev_dependencies_count": 10
+  },
+  "backend": {
+    "framework": "Flask 3.0.0",
+    "language": "Python 3.11+",
+    "blueprints": [
+      "auth_bp",
+      "leads_bp",
+      "chat_bp", 
+      "billing_bp",
+      "knowledge_bp",
+      "settings_bp",
+      "health_bp"
+    ],
+    "endpoints": [
+      {
+        "method": "GET",
+        "route": "/api/health",
+        "description": "Health check"
+      },
+      {
+        "method": "GET", 
+        "route": "/api/leads/",
+        "description": "Listar leads com filtros"
+      },
+      {
+        "method": "POST",
+        "route": "/api/leads/",
+        "description": "Criar novo lead"
+      },
+      {
+        "method": "POST",
+        "route": "/api/leads/upload",
+        "description": "Upload CSV de leads"
+      },
+      {
+        "method": "GET",
+        "route": "/api/chat/{session_id}",
+        "description": "Histórico da conversa"
+      },
+      {
+        "method": "POST",
+        "route": "/api/chat/{session_id}/send", 
+        "description": "Enviar mensagem"
+      },
+      {
+        "method": "GET",
+        "route": "/api/billing/plans",
+        "description": "Planos Stripe disponíveis"
+      },
+      {
+        "method": "POST",
+        "route": "/api/billing/create-checkout",
+        "description": "Criar sessão de pagamento"
+      },
+      {
+        "method": "POST",
+        "route": "/api/knowledge-base",
+        "description": "Salvar base de conhecimento"
+      },
+      {
+        "method": "GET",
+        "route": "/api/settings/",
+        "description": "Configurações do tenant"
+      }
+    ],
+    "services": [
+      "qualification_service.py",
+      "simple_qualification.py", 
+      "openai_service.py",
+      "simple_twilio.py",
+      "stripe_service.py",
+      "mock_stripe_service.py",
+      "n8n_service.py",
+      "simple_supabase.py",
+      "whatsapp_simulator.py"
+    ],
+    "dependencies_count": 25
+  },
+  "database": {
+    "provider": "Supabase PostgreSQL",
+    "schema_tool": "Prisma",
+    "tables": [
+      {
+        "name": "tenants",
+        "columns": ["id", "name", "domain", "settings", "created_at", "updated_at"],
+        "purpose": "Multi-tenancy"
+      },
+      {
+        "name": "users", 
+        "columns": ["id", "tenant_id", "email", "role", "name", "created_at"],
+        "purpose": "Usuários do sistema"
+      },
+      {
+        "name": "leads",
+        "columns": ["id", "tenant_id", "name", "email", "phone", "origem", "status", "score", "created_at", "updated_at"],
+        "purpose": "Leads capturados"
+      },
+      {
+        "name": "sessions",
+        "columns": ["id", "lead_id", "status", "current_step", "context", "created_at", "updated_at"],
+        "purpose": "Sessões de conversa"
+      },
+      {
+        "name": "messages",
+        "columns": ["id", "session_id", "direction", "content", "message_type", "twilio_sid", "created_at"],
+        "purpose": "Mensagens do chat"
+      },
+      {
+        "name": "qualificacoes",
+        "columns": ["id", "lead_id", "patrimonio_faixa", "objetivo", "urgencia", "interesse_especialista", "score_final", "created_at"],
+        "purpose": "Dados de qualificação"
+      },
+      {
+        "name": "meetings",
+        "columns": ["id", "lead_id", "closer_id", "horario_sugestao_1", "horario_sugestao_2", "status", "created_at"],
+        "purpose": "Agendamentos"
+      },
+      {
+        "name": "audit_events",
+        "columns": ["id", "tenant_id", "user_id", "action", "resource_type", "resource_id", "details", "created_at"],
+        "purpose": "Log de auditoria"
+      }
+    ],
+    "total_tables": 10,
+    "rls_enabled": true,
+    "multi_tenancy": true
+  },
+  "integrations": {
+    "openai": {
+      "models_used": ["gpt-4o-mini", "gpt-4o"],
+      "primary_use": "Lead qualification",
+      "temperature": 0.7,
+      "max_tokens": 1000,
+      "status": "Required"
+    },
+    "twilio": {
+      "service": "WhatsApp Business API",
+      "simulator_available": true,
+      "status": "Optional with simulator"
+    },
+    "n8n": {
+      "workflows_count": 9,
+      "main_workflows": [
+        "intake_complete_workflow.json",
+        "qualification_notification_workflow.json", 
+        "complete_whatsapp_workflow.json",
+        "reengagement_workflow.json"
+      ],
+      "webhooks": [
+        "/webhook/intake-lead",
+        "/webhook/qualified-lead",
+        "/webhook/reengagement"
+      ],
+      "status": "Optional"
+    },
+    "stripe": {
+      "plans": [
+        {"id": "starter", "price": 19700, "leads_limit": 500},
+        {"id": "pro", "price": 49700, "leads_limit": 2000},
+        {"id": "enterprise", "price": 99700, "leads_limit": -1}
+      ],
+      "mock_available": true,
+      "status": "Optional with mock"
+    }
+  },
+  "environment_variables": {
+    "backend_required": [
+      "SUPABASE_URL",
+      "SUPABASE_ANON_KEY", 
+      "SUPABASE_SERVICE_ROLE_KEY",
+      "OPENAI_API_KEY"
+    ],
+    "backend_optional": [
+      "TWILIO_ACCOUNT_SID",
+      "TWILIO_AUTH_TOKEN",
+      "TWILIO_WHATSAPP_NUMBER",
+      "N8N_WEBHOOK_URL_INTAKE",
+      "N8N_WEBHOOK_URL_QUALIFIED", 
+      "N8N_WEBHOOK_URL_REENGAGEMENT",
+      "STRIPE_SECRET_KEY",
+      "STRIPE_PUBLISHABLE_KEY",
+      "STRIPE_WEBHOOK_SECRET"
+    ],
+    "frontend_required": [
+      "NEXT_PUBLIC_SUPABASE_URL",
+      "NEXT_PUBLIC_SUPABASE_ANON_KEY",
+      "NEXT_PUBLIC_API_URL"
+    ],
+    "frontend_optional": [
+      "NEXT_PUBLIC_ANALYTICS_ENABLED",
+      "NEXT_PUBLIC_SENTRY_DSN",
+      "NEXT_PUBLIC_GTM_ID"
+    ],
+    "total_variables": 35
+  },
+  "qualification_system": {
+    "questions": [
+      {
+        "id": "patrimonio",
+        "question": "Quanto tem disponível para investir?",
+        "options": ["Até R$ 50 mil", "R$ 50-200 mil", "R$ 200-500 mil", "Mais de R$ 500 mil"],
+        "max_points": 30
+      },
+      {
+        "id": "objetivo", 
+        "question": "Principal objetivo com investimentos?",
+        "options": ["Aposentadoria", "Crescimento", "Reserva", "Especulação"],
+        "max_points": 25
+      },
+      {
+        "id": "urgencia",
+        "question": "Quando pretende começar?", 
+        "options": ["Esta semana", "Este mês", "Em 3 meses", "Sem pressa"],
+        "max_points": 25
+      },
+      {
+        "id": "interesse",
+        "question": "Gostaria de falar com especialista?",
+        "options": ["Sim, urgente", "Sim, quando possível", "Talvez", "Não"],
+        "max_points": 20
+      }
+    ],
+    "total_points": 100,
+    "qualification_threshold": 70,
+    "conversation_states": ["inicio", "patrimonio", "objetivo", "urgencia", "interesse", "qualificacao_completa"]
+  },
+  "build_scripts": {
+    "automated": [
+      "INICIAR_SISTEMA.bat",
+      "start_system.py"
+    ],
+    "manual_commands": [
+      "pip install -r requirements_minimal.txt",
+      "npm install",
+      "python app.py",
+      "npm run dev"
+    ],
+    "ports": {
+      "backend": 5000,
+      "frontend": 3000
+    }
+  },
+  "tests": {
+    "backend_tests": [
+      "test_billing_routes.py",
+      "test_billing_system.py", 
+      "test_knowledge_base_integration.py",
+      "test_knowledge_base_simple.py",
+      "test_qualification_fix.py"
+    ],
+    "test_coverage": "Core functionality",
+    "automated_testing": true
+  },
+  "documentation": {
+    "main_report": "docs/RELATORIO_UNICO_AQ.md",
+    "env_template": "docs/.env.example",
+    "execution_logs": "docs/execucao/",
+    "archived_docs": "docs/archive/",
+    "removed_duplicates": 21
+  },
+  "quality_metrics": {
+    "code_organization": "Good",
+    "documentation_completeness": "Excellent", 
+    "test_coverage": "Moderate",
+    "security_implementation": "Good (RLS + JWT)",
+    "scalability_readiness": "Good (Multi-tenant)",
+    "production_readiness": "Ready with minor fixes"
+  },
+  "recommendations": {
+    "immediate": [
+      "Remove temporary test files",
+      "Consolidate requirements.txt",
+      "Fix marshmallow imports",
+      "Register missing blueprints"
+    ],
+    "short_term": [
+      "Unify qualification logic",
+      "Implement billing frontend", 
+      "Add comprehensive error handling",
+      "Optimize OpenAI prompts"
+    ],
+    "medium_term": [
+      "Complete JWT authentication",
+      "Add performance monitoring",
+      "Implement caching layer",
+      "White-label customization"
+    ]
+  }
+}
+

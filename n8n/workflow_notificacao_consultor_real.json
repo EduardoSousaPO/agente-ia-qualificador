@@ -1,0 +1,197 @@
+{
+  "name": "🎯 Notificação Consultor - Lead Qualificado",
+  "nodes": [
+    {
+      "parameters": {
+        "httpMethod": "POST",
+        "path": "qualified-lead",
+        "responseMode": "responseNode",
+        "options": {}
+      },
+      "id": "webhook-qualified-lead",
+      "name": "Webhook - Lead Qualificado",
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 1,
+      "position": [240, 300],
+      "webhookId": "qualified-lead"
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict"
+          },
+          "conditions": [
+            {
+              "id": "score-check",
+              "leftValue": "={{ $json.qualification.score }}",
+              "rightValue": 70,
+              "operator": {
+                "type": "number",
+                "operation": "gte"
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "id": "if-qualified",
+      "name": "Se Qualificado (Score >= 70)",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2,
+      "position": [460, 300]
+    },
+    {
+      "parameters": {
+        "authentication": "oAuth2",
+        "select": "channel",
+        "channelId": {
+          "__rl": true,
+          "value": "C07XXXXXXXX",
+          "mode": "list",
+          "cachedResultName": "leads-qualificados"
+        },
+        "text": "🎯 **LEAD QUALIFICADO!**\n\n👤 **Cliente:** {{ $('Webhook - Lead Qualificado').item.json.lead.name }}\n📱 **Telefone:** {{ $('Webhook - Lead Qualificado').item.json.lead.phone }}\n📧 **Email:** {{ $('Webhook - Lead Qualificado').item.json.lead.email }}\n💰 **Patrimônio:** {{ $('Webhook - Lead Qualificado').item.json.qualification.patrimonio }}\n🎯 **Objetivo:** {{ $('Webhook - Lead Qualificado').item.json.qualification.objetivo }}\n⏰ **Urgência:** {{ $('Webhook - Lead Qualificado').item.json.qualification.urgencia }}\n🤝 **Interesse:** {{ $('Webhook - Lead Qualificado').item.json.qualification.interesse }}\n\n📊 **Score Final:** {{ $('Webhook - Lead Qualificado').item.json.qualification.score }}/100\n\n🚀 **Próximas Ações:**\n• Entrar em contato em até 2 horas\n• Agendar consultoria gratuita\n• Preparar proposta personalizada\n\n⏰ **Qualificado em:** {{ $now.format('dd/MM/yyyy HH:mm') }}",
+        "otherOptions": {}
+      },
+      "id": "slack-notification",
+      "name": "Notificar Slack",
+      "type": "n8n-nodes-base.slack",
+      "typeVersion": 2.1,
+      "position": [680, 200],
+      "credentials": {
+        "slackOAuth2Api": {
+          "id": "slack-credentials",
+          "name": "Slack - Leads Qualificados"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "fromEmail": "noreply@seudominio.com",
+        "toEmail": "consultor@seudominio.com",
+        "subject": "🎯 Novo Lead Qualificado - {{ $('Webhook - Lead Qualificado').item.json.lead.name }}",
+        "emailFormat": "html",
+        "html": "<!DOCTYPE html>\n<html>\n<head>\n    <style>\n        body { font-family: Arial, sans-serif; line-height: 1.6; color: #333; }\n        .header { background: #4CAF50; color: white; padding: 20px; text-align: center; }\n        .content { padding: 20px; }\n        .lead-info { background: #f9f9f9; padding: 15px; border-radius: 5px; margin: 10px 0; }\n        .score { font-size: 24px; font-weight: bold; color: #4CAF50; }\n        .actions { background: #e3f2fd; padding: 15px; border-radius: 5px; }\n    </style>\n</head>\n<body>\n    <div class=\"header\">\n        <h1>🎯 Novo Lead Qualificado!</h1>\n    </div>\n    \n    <div class=\"content\">\n        <div class=\"lead-info\">\n            <h2>📋 Informações do Lead</h2>\n            <p><strong>Nome:</strong> {{ $('Webhook - Lead Qualificado').item.json.lead.name }}</p>\n            <p><strong>Telefone:</strong> {{ $('Webhook - Lead Qualificado').item.json.lead.phone }}</p>\n            <p><strong>Email:</strong> {{ $('Webhook - Lead Qualificado').item.json.lead.email }}</p>\n            <p><strong>Origem:</strong> {{ $('Webhook - Lead Qualificado').item.json.lead.origem }}</p>\n        </div>\n        \n        <div class=\"lead-info\">\n            <h2>🎯 Qualificação</h2>\n            <p><strong>Patrimônio:</strong> {{ $('Webhook - Lead Qualificado').item.json.qualification.patrimonio }}</p>\n            <p><strong>Objetivo:</strong> {{ $('Webhook - Lead Qualificado').item.json.qualification.objetivo }}</p>\n            <p><strong>Urgência:</strong> {{ $('Webhook - Lead Qualificado').item.json.qualification.urgencia }}</p>\n            <p><strong>Interesse:</strong> {{ $('Webhook - Lead Qualificado').item.json.qualification.interesse }}</p>\n            <p class=\"score\">Score Final: {{ $('Webhook - Lead Qualificado').item.json.qualification.score }}/100</p>\n        </div>\n        \n        <div class=\"actions\">\n            <h2>🚀 Próximas Ações</h2>\n            <ul>\n                <li>Entrar em contato em até 2 horas</li>\n                <li>Agendar consultoria gratuita</li>\n                <li>Preparar proposta personalizada</li>\n            </ul>\n        </div>\n        \n        <p><small>Qualificado automaticamente em {{ $now.format('dd/MM/yyyy HH:mm') }}</small></p>\n    </div>\n</body>\n</html>",
+        "options": {}
+      },
+      "id": "email-notification",
+      "name": "Enviar Email",
+      "type": "n8n-nodes-base.emailSend",
+      "typeVersion": 2,
+      "position": [680, 400],
+      "credentials": {
+        "smtp": {
+          "id": "smtp-credentials",
+          "name": "SMTP - Notificações"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "respondWith": "json",
+        "responseBody": "{\n  \"success\": true,\n  \"message\": \"Lead qualificado processado com sucesso\",\n  \"lead_id\": \"{{ $('Webhook - Lead Qualificado').item.json.lead.id }}\",\n  \"score\": {{ $('Webhook - Lead Qualificado').item.json.qualification.score }},\n  \"notifications_sent\": {\n    \"slack\": true,\n    \"email\": true\n  },\n  \"timestamp\": \"{{ $now.toISOString() }}\"\n}",
+        "options": {}
+      },
+      "id": "success-response",
+      "name": "Resposta Sucesso",
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1,
+      "position": [900, 300]
+    },
+    {
+      "parameters": {
+        "respondWith": "json",
+        "responseBody": "{\n  \"success\": false,\n  \"message\": \"Lead não qualificado (score < 70)\",\n  \"lead_id\": \"{{ $('Webhook - Lead Qualificado').item.json.lead.id }}\",\n  \"score\": {{ $('Webhook - Lead Qualificado').item.json.qualification.score }},\n  \"threshold\": 70,\n  \"timestamp\": \"{{ $now.toISOString() }}\"\n}",
+        "options": {}
+      },
+      "id": "not-qualified-response",
+      "name": "Lead Não Qualificado",
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1,
+      "position": [680, 600]
+    }
+  ],
+  "connections": {
+    "Webhook - Lead Qualificado": {
+      "main": [
+        [
+          {
+            "node": "Se Qualificado (Score >= 70)",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Se Qualificado (Score >= 70)": {
+      "main": [
+        [
+          {
+            "node": "Notificar Slack",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "Enviar Email",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Lead Não Qualificado",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Notificar Slack": {
+      "main": [
+        [
+          {
+            "node": "Resposta Sucesso",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Enviar Email": {
+      "main": [
+        [
+          {
+            "node": "Resposta Sucesso",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "active": true,
+  "settings": {
+    "executionOrder": "v1"
+  },
+  "versionId": "1",
+  "meta": {
+    "templateCredsSetupCompleted": true
+  },
+  "id": "qualified-lead-notification",
+  "tags": [
+    {
+      "createdAt": "2025-01-01T00:00:00.000Z",
+      "updatedAt": "2025-01-01T00:00:00.000Z",
+      "id": "lead-qualification",
+      "name": "Lead Qualification"
+    }
+  ]
+}
+
+
+
+

@@ -1,0 +1,336 @@
+{
+  "name": "🤖 Agente IA Qualificador - Workflow Completo WhatsApp",
+  "nodes": [
+    {
+      "parameters": {
+        "httpMethod": "POST",
+        "path": "whatsapp-webhook",
+        "options": {
+          "rawBody": true
+        }
+      },
+      "id": "webhook-twilio",
+      "name": "📱 Webhook Twilio WhatsApp",
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 1,
+      "position": [240, 300]
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict"
+          },
+          "conditions": [
+            {
+              "id": "condition1",
+              "leftValue": "={{ $json.Body }}",
+              "rightValue": "",
+              "operator": {
+                "type": "string",
+                "operation": "notEmpty"
+              }
+            }
+          ],
+          "combinator": "and"
+        }
+      },
+      "id": "filter-valid-messages",
+      "name": "✅ Filtrar Mensagens Válidas",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2,
+      "position": [460, 300]
+    },
+    {
+      "parameters": {
+        "url": "https://wsoxukpeyzmpcngjugie.supabase.co/rest/v1/leads",
+        "authentication": "headerAuth",
+        "sendQuery": true,
+        "queryParameters": {
+          "parameters": [
+            {
+              "name": "phone",
+              "value": "=eq.{{ $json.From.replace('whatsapp:', '') }}"
+            },
+            {
+              "name": "select",
+              "value": "*"
+            }
+          ]
+        },
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "apikey",
+              "value": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Indzb3h1a3BleXptcGNuZ2p1Z2llIiwicm9sZSI6InNlcnZpY2Vfcm9sZSIsImlhdCI6MTc1NTU0ODM0NSwiZXhwIjoyMDcxMTI0MzQ1fQ.BKoJd_3Z2djDtoWzPjfrrnI2jvrT19WEyw6QK-6CxpI"
+            },
+            {
+              "name": "Authorization",
+              "value": "Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Indzb3h1a3BleXptcGNuZ2p1Z2llIiwicm9sZSI6InNlcnZpY2Vfcm9sZSIsImlhdCI6MTc1NTU0ODM0NSwiZXhwIjoyMDcxMTI0MzQ1fQ.BKoJd_3Z2djDtoWzPjfrrnI2jvrT19WEyw6QK-6CxpI"
+            }
+          ]
+        }
+      },
+      "id": "buscar-lead-supabase",
+      "name": "🔍 Buscar Lead no Supabase",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.1,
+      "position": [680, 200]
+    },
+    {
+      "parameters": {
+        "model": "gpt-4o-mini",
+        "messages": {
+          "messageValues": [
+            {
+              "role": "system",
+              "content": "Você é um assistente de qualificação de leads para um escritório de investimentos. Seu objetivo é conduzir uma conversa natural e consultiva para qualificar investidores potenciais.\n\nCritérios de qualificação:\n1. PATRIMÔNIO: Faixa de investimento disponível\n2. OBJETIVO: Metas de investimento específicas  \n3. URGÊNCIA: Prazo para começar a investir\n4. INTERESSE: Disposição para falar com especialista\n\nEtapas da conversa:\n1. Apresentação amigável\n2. Perguntar se já investe hoje\n3. Descobrir onde investe atualmente\n4. Investigar patrimônio (usar faixas: até 50k, 50k-200k, 200k-500k, 500k+)\n5. Entender objetivos de investimento\n6. Avaliar urgência (esta semana, este mês, próximos 3 meses)\n7. Propor conversa com especialista\n\nSe atingir todos os critérios, responda com: HANDOFF_READY\n\nMantenha tom consultivo, uma pergunta por vez, linguagem natural."
+            },
+            {
+              "role": "user", 
+              "content": "={{ $json.Body }}"
+            }
+          ]
+        },
+        "options": {
+          "temperature": 0.7,
+          "maxTokens": 200
+        }
+      },
+      "id": "openai-qualification",
+      "name": "🤖 OpenAI - Qualificação IA",
+      "type": "@n8n/n8n-nodes-langchain.openAi",
+      "typeVersion": 1.3,
+      "position": [900, 300],
+      "credentials": {
+        "openAiApi": {
+          "id": "openai-credentials",
+          "name": "OpenAI API"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": false
+          },
+          "conditions": [
+            {
+              "id": "condition1",
+              "leftValue": "={{ $json.choices[0].message.content }}",
+              "rightValue": "HANDOFF_READY",
+              "operator": {
+                "type": "string",
+                "operation": "contains"
+              }
+            }
+          ]
+        }
+      },
+      "id": "check-handoff-ready",
+      "name": "🎯 Verificar se Qualificado",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2,
+      "position": [1120, 300]
+    },
+    {
+      "parameters": {
+        "url": "https://api.twilio.com/2010-04-01/Accounts/{{ $env.TWILIO_ACCOUNT_SID }}/Messages.json",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpBasicAuth",
+        "sendBody": true,
+        "bodyParameters": {
+          "parameters": [
+            {
+              "name": "From",
+              "value": "whatsapp:+14155238886"
+            },
+            {
+              "name": "To", 
+              "value": "={{ $('📱 Webhook Twilio WhatsApp').item.json.From }}"
+            },
+            {
+              "name": "Body",
+              "value": "={{ $json.choices[0].message.content.replace('HANDOFF_READY', 'Perfeito! Você está qualificado. Um de nossos especialistas entrará em contato em breve para agendar uma conversa personalizada.') }}"
+            }
+          ]
+        },
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "Content-Type",
+              "value": "application/x-www-form-urlencoded"
+            }
+          ]
+        }
+      },
+      "id": "twilio-send-response",
+      "name": "📤 Enviar Resposta via Twilio",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.1,
+      "position": [900, 500],
+      "credentials": {
+        "httpBasicAuth": {
+          "id": "twilio-credentials",
+          "name": "Twilio API"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "url": "https://wsoxukpeyzmpcngjugie.supabase.co/rest/v1/messages",
+        "authentication": "headerAuth",
+        "sendBody": true,
+        "bodyParameters": {
+          "parameters": [
+            {
+              "name": "session_id",
+              "value": "={{ $('🔍 Buscar Lead no Supabase').item.json[0].id }}"
+            },
+            {
+              "name": "direction",
+              "value": "inbound"
+            },
+            {
+              "name": "content",
+              "value": "={{ $('📱 Webhook Twilio WhatsApp').item.json.Body }}"
+            },
+            {
+              "name": "message_type",
+              "value": "text"
+            },
+            {
+              "name": "twilio_sid",
+              "value": "={{ $('📱 Webhook Twilio WhatsApp').item.json.MessageSid }}"
+            }
+          ]
+        },
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "apikey",
+              "value": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Indzb3h1a3BleXptcGNuZ2p1Z2llIiwicm9sZSI6InNlcnZpY2Vfcm9sZSIsImlhdCI6MTc1NTU0ODM0NSwiZXhwIjoyMDcxMTI0MzQ1fQ.BKoJd_3Z2djDtoWzPjfrrnI2jvrT19WEyw6QK-6CxpI"
+            },
+            {
+              "name": "Authorization", 
+              "value": "Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Indzb3h1a3BleXptcGNuZ2p1Z2llIiwicm9sZSI6InNlcnZpY2Vfcm9sZSIsImlhdCI6MTc1NTU0ODM0NSwiZXhwIjoyMDcxMTI0MzQ1fQ.BKoJd_3Z2djDtoWzPjfrrnI2jvrT19WEyw6QK-6CxpI"
+            },
+            {
+              "name": "Content-Type",
+              "value": "application/json"
+            }
+          ]
+        }
+      },
+      "id": "salvar-mensagem-supabase",
+      "name": "💾 Salvar Mensagem no Supabase",
+      "type": "n8n-nodes-base.httpRequest", 
+      "typeVersion": 4.1,
+      "position": [680, 500]
+    },
+    {
+      "parameters": {
+        "url": "https://hooks.slack.com/services/YOUR/SLACK/WEBHOOK",
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={\n  \"text\": \"🎯 LEAD QUALIFICADO!\",\n  \"blocks\": [\n    {\n      \"type\": \"header\",\n      \"text\": {\n        \"type\": \"plain_text\",\n        \"text\": \"🎯 Novo Lead Qualificado!\"\n      }\n    },\n    {\n      \"type\": \"section\", \n      \"fields\": [\n        {\n          \"type\": \"mrkdwn\",\n          \"text\": \"*Nome:* {{ $('🔍 Buscar Lead no Supabase').item.json[0].name }}\"\n        },\n        {\n          \"type\": \"mrkdwn\",\n          \"text\": \"*Telefone:* {{ $('🔍 Buscar Lead no Supabase').item.json[0].phone }}\"\n        },\n        {\n          \"type\": \"mrkdwn\",\n          \"text\": \"*Email:* {{ $('🔍 Buscar Lead no Supabase').item.json[0].email }}\"\n        },\n        {\n          \"type\": \"mrkdwn\",\n          \"text\": \"*Origem:* {{ $('🔍 Buscar Lead no Supabase').item.json[0].origem }}\"\n        }\n      ]\n    },\n    {\n      \"type\": \"section\",\n      \"text\": {\n        \"type\": \"mrkdwn\",\n        \"text\": \"*Última mensagem:* {{ $('📱 Webhook Twilio WhatsApp').item.json.Body }}\"\n      }\n    },\n    {\n      \"type\": \"actions\",\n      \"elements\": [\n        {\n          \"type\": \"button\",\n          \"text\": {\n            \"type\": \"plain_text\",\n            \"text\": \"📞 Ligar Agora\"\n          },\n          \"url\": \"tel:{{ $('🔍 Buscar Lead no Supabase').item.json[0].phone }}\"\n        },\n        {\n          \"type\": \"button\",\n          \"text\": {\n            \"type\": \"plain_text\",\n            \"text\": \"📧 Enviar Email\"\n          },\n          \"url\": \"mailto:{{ $('🔍 Buscar Lead no Supabase').item.json[0].email }}\"\n        }\n      ]\n    }\n  ]\n}"
+      },
+      "id": "notificar-slack",
+      "name": "📢 Notificar Closer via Slack",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.1,
+      "position": [1340, 200]
+    }
+  ],
+  "connections": {
+    "📱 Webhook Twilio WhatsApp": {
+      "main": [
+        [
+          {
+            "node": "✅ Filtrar Mensagens Válidas",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "✅ Filtrar Mensagens Válidas": {
+      "main": [
+        [
+          {
+            "node": "🔍 Buscar Lead no Supabase",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "💾 Salvar Mensagem no Supabase",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "🔍 Buscar Lead no Supabase": {
+      "main": [
+        [
+          {
+            "node": "🤖 OpenAI - Qualificação IA",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "🤖 OpenAI - Qualificação IA": {
+      "main": [
+        [
+          {
+            "node": "🎯 Verificar se Qualificado",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "📤 Enviar Resposta via Twilio",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "🎯 Verificar se Qualificado": {
+      "main": [
+        [
+          {
+            "node": "📢 Notificar Closer via Slack",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "active": true,
+  "settings": {
+    "executionOrder": "v1"
+  },
+  "versionId": "1.0.0",
+  "meta": {
+    "templateCredsSetupCompleted": false
+  },
+  "tags": [
+    {
+      "createdAt": "2025-08-21T18:30:00.000Z",
+      "updatedAt": "2025-08-21T18:30:00.000Z",
+      "id": "whatsapp-ai-agent",
+      "name": "WhatsApp AI Agent"
+    }
+  ]
+}
+
+

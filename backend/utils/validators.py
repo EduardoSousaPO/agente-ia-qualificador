@@ -3,7 +3,7 @@ Utilitários de validação
 """
 import re
 from typing import Dict, List, Optional, Any
-from marshmallow import Schema, fields, validate, ValidationError
+import uuid
 
 def validate_phone_number(phone: str) -> bool:
     """Validar número de telefone brasileiro"""

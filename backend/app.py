@@ -10,8 +10,13 @@ from flask import Flask, jsonify, request
 from flask_cors import CORS
 from dotenv import load_dotenv
 
-# Carregar variáveis de ambiente
-load_dotenv()
+# Carregar variáveis de ambiente do backend
+load_dotenv('.env')  # Arquivo copiado pelo INICIAR_SISTEMA.bat
+
+# Importar blueprints das rotas
+from app.routes.knowledge import knowledge_bp
+from app.routes.tenants import tenants_bp
+from app.routes.hooks import hooks_bp
 
 def create_app():
     """Factory para criar aplicação Flask"""
@@ -28,6 +33,11 @@ def create_app():
     
     # Configurar CORS
     CORS(app, origins=os.getenv('CORS_ORIGINS', 'http://localhost:3000').split(','))
+    
+    # Registrar blueprints
+    app.register_blueprint(knowledge_bp)
+    app.register_blueprint(tenants_bp)
+    app.register_blueprint(hooks_bp)
     
     # Configurar logging
     logging.basicConfig(
@@ -157,6 +167,45 @@ def create_app():
                 "error": str(e)
             }), 500
     
+    # Webhook para receber do Twilio e encaminhar para N8N
+    @app.route('/api/webhooks/twilio-n8n', methods=['POST'])
+    def twilio_to_n8n_webhook():
+        """Webhook que recebe do Twilio e encaminha para N8N WhatsApp Workflow"""
+        try:
+            # Dados do Twilio (form-encoded)
+            twilio_data = {
+                'From': request.form.get('From', ''),
+                'To': request.form.get('To', ''),
+                'Body': request.form.get('Body', ''),
+                'MessageSid': request.form.get('MessageSid', ''),
+                'AccountSid': request.form.get('AccountSid', ''),
+                'NumSegments': request.form.get('NumSegments', '1'),
+                'MessageStatus': request.form.get('MessageStatus', 'received')
+            }
+            
+            app.logger.info(f"📱 Webhook Twilio→N8N recebido: {twilio_data}")
+            
+            # Encaminhar para N8N WhatsApp Webhook
+            n8n_base_url = os.getenv('N8N_WEBHOOK_URL_INTAKE', '').replace('/webhook/intake-lead', '')
+            n8n_whatsapp_url = f"{n8n_base_url}/webhook/whatsapp-webhook"
+            
+            if n8n_base_url:
+                import requests
+                try:
+                    response = requests.post(n8n_whatsapp_url, json=twilio_data, timeout=10)
+                    app.logger.info(f"🔄 N8N WhatsApp Response: {response.status_code}")
+                except Exception as e:
+                    app.logger.error(f"❌ Erro ao enviar para N8N: {e}")
+            
+            # Resposta TwiML vazia (N8N processará e responderá)
+            return '''<?xml version="1.0" encoding="UTF-8"?>
+<Response></Response>''', 200, {'Content-Type': 'application/xml'}
+            
+        except Exception as e:
+            app.logger.error(f"Erro no webhook Twilio→N8N: {e}")
+            return '''<?xml version="1.0" encoding="UTF-8"?>
+<Response></Response>''', 200, {'Content-Type': 'application/xml'}
+    
     # Rota de teste WhatsApp Simulator
     @app.route('/api/test/whatsapp', methods=['POST'])
     def test_whatsapp():
@@ -202,24 +251,38 @@ def create_app():
             if not data.get('name') or not data.get('phone'):
                 return jsonify({'error': 'Nome e telefone são obrigatórios'}), 400
             
-            # Simular criação (sem banco real por enquanto)
+            # Criar lead real no Supabase
+            from supabase import create_client
+            
+            supabase_url = app.config['SUPABASE_URL']
+            supabase_key = app.config['SUPABASE_SERVICE_KEY']
+            supabase = create_client(supabase_url, supabase_key)
+            
             lead_data = {
-                'id': f"LEAD_{datetime.now().strftime('%Y%m%d%H%M%S')}",
                 'name': data['name'],
                 'phone': data['phone'],
-                'email': data.get('email'),
-                'origem': data.get('origem', 'api_test'),
+                'email': data.get('email', ''),
+                'origem': data.get('origem', 'manual'),
                 'status': 'novo',
-                'score': 0,
-                'created_at': datetime.now().isoformat()
+                'tenant_id': '60675861-e22a-4990-bab8-65ed07632a63'  # Tenant demo
             }
             
-            app.logger.info(f"📋 Lead criado (simulado): {lead_data}")
+            result = supabase.table('leads').insert(lead_data).execute()
             
-            return jsonify({
-                "message": "Lead criado com sucesso (simulado)",
-                "lead": lead_data
-            }), 201
+            if result.data:
+                lead = result.data[0]
+                app.logger.info(f"📋 Lead criado no Supabase: {lead['id']}")
+                
+                return jsonify({
+                    "success": True,
+                    "lead": lead,
+                    "message": "Lead criado com sucesso"
+                }), 201
+            else:
+                return jsonify({
+                    "success": False,
+                    "error": "Falha ao criar lead no Supabase"
+                }), 500
             
         except Exception as e:
             app.logger.error(f"Erro ao criar lead: {e}")
@@ -340,7 +403,7 @@ def create_app():
     
     # Rota para dashboard/estatísticas
     @app.route('/api/dashboard', methods=['GET'])
-    def dashboard_stats():
+    def dashboard_overview():
         """Estatísticas do dashboard"""
         # Buscar estatísticas reais do Supabase
         try:
@@ -397,41 +460,102 @@ def create_app():
                 }
             })
     
-    # Rota para webhook Twilio (simulada)
+    # Webhook Twilio com IA Real
     @app.route('/api/webhooks/twilio', methods=['POST'])
-    def webhook_twilio_simple():
-        """Webhook Twilio simplificado para testes"""
+    def webhook_twilio_ai():
+        """Webhook Twilio com processamento IA real"""
         try:
+            from services.qualification_service import qualification_service
+            
+            
             data = request.json or request.form.to_dict()
             
             app.logger.info(f"📱 Webhook Twilio recebido: {data}")
             
-            # Simular processamento da IA
+            # Extrair dados da mensagem
             from_number = data.get('From', '').replace('whatsapp:', '')
             message_body = data.get('Body', '')
+            message_sid = data.get('MessageSid', '')
             
-            # Resposta simulada da IA
-            ai_response = f"Olá! Recebi sua mensagem: '{message_body}'. Como posso ajudá-lo com investimentos?"
+            if not from_number or not message_body:
+                return jsonify({
+                    "success": False,
+                    "error": "Dados inválidos"
+                }), 400
             
-            response_data = {
-                "success": True,
-                "message": "Mensagem processada com sucesso",
-                "from": from_number,
-                "received_message": message_body,
-                "ai_response": ai_response,
-                "score": 25,  # Score simulado
-                "next_step": "aguardando_resposta"
-            }
+            # Buscar ou criar lead baseado no telefone
+            from supabase import create_client
+            supabase_url = app.config['SUPABASE_URL']
+            supabase_key = app.config['SUPABASE_SERVICE_KEY']
+            supabase = create_client(supabase_url, supabase_key)
             
-            app.logger.info(f"🤖 IA respondeu: {ai_response}")
+            # Buscar lead existente
+            lead_response = supabase.table('leads').select('*').eq('phone', from_number).execute()
             
-            return jsonify(response_data)
+            if lead_response.data:
+                lead = lead_response.data[0]
+                lead_id = lead['id']
+            else:
+                # Criar novo lead
+                new_lead = {
+                    'name': f'Lead {from_number[-4:]}',
+                    'phone': from_number,
+                    'origem': 'whatsapp_inbound',
+                    'status': 'novo',
+                    'tenant_id': '60675861-e22a-4990-bab8-65ed07632a63'  # Tenant demo
+                }
+                
+                lead_response = supabase.table('leads').insert(new_lead).execute()
+                lead = lead_response.data[0]
+                lead_id = lead['id']
+            
+            # Buscar sessão ativa para este lead
+            session_response = supabase.table('sessions').select('*').eq('lead_id', lead_id).eq('status', 'ativa').execute()
+            
+            if session_response.data:
+                # Sessão existente - processar resposta
+                session = session_response.data[0]
+                session_id = session['id']
+                
+                # Processar resposta com IA
+                result = qualification_service.process_lead_response(session_id, message_body)
+                
+                if result['success']:
+                    app.logger.info(f"🤖 IA processou resposta: {result.get('ai_response', '')[:100]}...")
+                    
+                    return jsonify({
+                        "success": True,
+                        "message": "Resposta processada com IA",
+                        "session_id": session_id,
+                        "qualification_status": result.get('qualification_status', {}),
+                        "ai_response": result.get('ai_response', '')
+                    })
+                else:
+                    app.logger.error(f"Erro ao processar resposta: {result.get('error')}")
+                    return jsonify(result), 500
+                    
+            else:
+                # Nova conversa - iniciar qualificação
+                result = qualification_service.start_qualification(lead_id, from_number)
+                
+                if result['success']:
+                    app.logger.info(f"🚀 Qualificação iniciada para lead {lead_id}")
+                    
+                    return jsonify({
+                        "success": True,
+                        "message": "Qualificação iniciada",
+                        "session_id": result['session_id'],
+                        "lead_id": lead_id
+                    })
+                else:
+                    app.logger.error(f"Erro ao iniciar qualificação: {result.get('error')}")
+                    return jsonify(result), 500
             
         except Exception as e:
-            app.logger.error(f"Erro no webhook: {e}")
+            app.logger.error(f"Erro no webhook Twilio: {e}")
             return jsonify({
                 "success": False,
-                "error": str(e)
+                "error": "Erro interno do servidor"
             }), 500
     
     # Rotas faltantes que o frontend está tentando acessar
@@ -480,6 +604,119 @@ def create_app():
             "available_reports": ["Conversion funnel", "Lead sources", "Agent performance"]
         })
     
+    # Rota para estatísticas do dashboard
+    @app.route('/api/dashboard/stats', methods=['GET'])
+    def dashboard_stats():
+        """Estatísticas do dashboard"""
+        try:
+            from supabase import create_client
+            
+            supabase_url = app.config['SUPABASE_URL']
+            supabase_key = app.config['SUPABASE_SERVICE_KEY']
+            supabase = create_client(supabase_url, supabase_key)
+            
+            # Buscar todos os leads
+            leads_response = supabase.table('leads').select('*').execute()
+            leads = leads_response.data or []
+            
+            # Calcular estatísticas
+            total_leads = len(leads)
+            qualified_leads = [lead for lead in leads if lead.get('score', 0) >= 70]
+            qualified_count = len(qualified_leads)
+            
+            # Taxa de qualificação
+            qualification_rate = (qualified_count / total_leads * 100) if total_leads > 0 else 0
+            
+            # Score médio dos qualificados
+            avg_score = sum(lead.get('score', 0) for lead in qualified_leads) / qualified_count if qualified_count > 0 else 0
+            
+            # Leads de hoje
+            from datetime import datetime, timedelta
+            today = datetime.now().date()
+            today_leads = [lead for lead in leads if lead.get('created_at', '').startswith(str(today))]
+            today_qualified = [lead for lead in today_leads if lead.get('score', 0) >= 70]
+            
+            # Últimas qualificações
+            recent_qualified = sorted(qualified_leads, key=lambda x: x.get('created_at', ''), reverse=True)[:5]
+            
+            return jsonify({
+                "success": True,
+                "stats": {
+                    "total_leads": total_leads,
+                    "qualified_leads": qualified_count,
+                    "qualification_rate": round(qualification_rate, 1),
+                    "avg_score": round(avg_score, 1),
+                    "today_leads": len(today_leads),
+                    "today_qualified": len(today_qualified),
+                    "recent_qualified": recent_qualified
+                },
+                "system_status": "online",
+                "last_updated": datetime.now().isoformat()
+            })
+            
+        except Exception as e:
+            app.logger.error(f"Erro ao buscar estatísticas do dashboard: {e}")
+            return jsonify({
+                "success": False,
+                "error": "Erro interno do servidor",
+                "stats": {
+                    "total_leads": 0,
+                    "qualified_leads": 0,
+                    "qualification_rate": 0,
+                    "avg_score": 0,
+                    "today_leads": 0,
+                    "today_qualified": 0,
+                    "recent_qualified": []
+                }
+            }), 500
+    
+    # Rota para iniciar qualificação manual
+    @app.route('/api/leads/<lead_id>/start-qualification', methods=['POST'])
+    def start_manual_qualification(lead_id):
+        """Iniciar qualificação manual para um lead"""
+        try:
+            from services.qualification_service import qualification_service
+            
+            
+            # Buscar lead
+            from supabase import create_client
+            supabase_url = app.config['SUPABASE_URL']
+            supabase_key = app.config['SUPABASE_SERVICE_KEY']
+            supabase = create_client(supabase_url, supabase_key)
+            
+            lead_response = supabase.table('leads').select('*').eq('id', lead_id).execute()
+            
+            if not lead_response.data:
+                return jsonify({
+                    "success": False,
+                    "error": "Lead não encontrado"
+                }), 404
+            
+            lead = lead_response.data[0]
+            phone = lead['phone']
+            
+            # Iniciar qualificação
+            result = qualification_service.start_qualification(lead_id, phone)
+            
+            if result['success']:
+                app.logger.info(f"🚀 Qualificação manual iniciada para lead {lead_id}")
+                
+                return jsonify({
+                    "success": True,
+                    "message": "Qualificação iniciada com sucesso",
+                    "session_id": result['session_id'],
+                    "lead_id": lead_id
+                })
+            else:
+                return jsonify(result), 500
+                
+        except Exception as e:
+            app.logger.error(f"Erro ao iniciar qualificação manual: {e}")
+            return jsonify({
+                "success": False,
+                "error": "Erro interno do servidor"
+            }), 500
+    
     # Middleware para CORS adicional
     @app.after_request
     def after_request(response):
@@ -509,7 +746,8 @@ if __name__ == '__main__':
     print("  • POST /api/test/whatsapp - Testar WhatsApp")
     print("  • POST /api/leads - Criar lead (teste)")
     print("  • GET  /api/leads - Listar leads (teste)")
-    print("  • POST /api/webhooks/twilio - Webhook WhatsApp (teste)")
+    print("  • POST /api/leads/<id>/start-qualification - Iniciar qualificação")
+    print("  • POST /api/webhooks/twilio - Webhook WhatsApp (IA Real)")
     print("=" * 50)
     
     app.run(
