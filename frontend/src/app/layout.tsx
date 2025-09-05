@@ -11,12 +11,8 @@ export const metadata: Metadata = {
   description: 'Sistema inteligente de qualificação de leads via WhatsApp para escritórios de investimento',
   keywords: ['leads', 'whatsapp', 'qualificação', 'investimentos', 'IA', 'chatbot'],
   authors: [{ name: 'Agente Qualificador Team' }],
-  viewport: 'width=device-width, initial-scale=1',
-  themeColor: '#3b82f6',
   icons: {
     icon: '/favicon.ico',
-    shortcut: '/favicon-16x16.png',
-    apple: '/apple-touch-icon.png',
   },
   manifest: '/site.webmanifest',
 }
@@ -28,6 +24,10 @@ export default function RootLayout({
 }) {
   return (
     <html lang="pt-BR" className="h-full">
+      <head>
+        <meta name="viewport" content="width=device-width, initial-scale=1" />
+        <meta name="theme-color" content="#3b82f6" />
+      </head>
       <body className={`${inter.className} h-full bg-gray-50 antialiased`}>
         <Providers>
           {children}

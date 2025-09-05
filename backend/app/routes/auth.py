@@ -3,7 +3,7 @@ Authentication routes
 """
 
 from flask import Blueprint, request, jsonify, current_app
-from services.supabase_service import supabase_service
+from services.simple_supabase import simple_supabase
 import jwt
 from functools import wraps
 
@@ -23,7 +23,7 @@ def token_required(f):
             token = token.replace('Bearer ', '')
             
             # Verificar token com Supabase
-            client = supabase_service.client
+            client = simple_supabase.client
             user = client.auth.get_user(token)
             
             if not user:
@@ -48,7 +48,7 @@ def get_current_user():
         user = request.current_user
         
         # Buscar dados adicionais do usuário no banco
-        client = supabase_service.client
+        client = simple_supabase.client
         result = client.table('users').select('*').eq('id', user.user.id).single().execute()
         
         if result.data:

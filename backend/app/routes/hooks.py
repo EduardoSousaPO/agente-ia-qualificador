@@ -76,7 +76,6 @@ def handle_qualified_lead():
         
         if not consultant_email:
             logger.warning("Email do consultor não configurado", tenant_id=tenant_id)
-            consultant_email = 'consultor@exemplo.com'  # Fallback para demo
         
         # Preparar payload completo
         full_payload = {

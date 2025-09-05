@@ -15,15 +15,22 @@ datasource db {
 model Tenant {
   id        String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
   name      String   @db.VarChar(255)
+  slug      String?  @unique @db.VarChar(255)
+  code      String?  @unique @db.VarChar(255)  // NOVO: Company code
   domain    String?  @unique @db.VarChar(255)
   settings  Json     @default("{}")
   createdAt DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
   updatedAt DateTime @default(now()) @updatedAt @map("updated_at") @db.Timestamptz(6)
 
   // Relations
-  users           User[]
-  leads           Lead[]
-  auditEvents     AuditEvent[]
+  users                User[]
+  leads                Lead[]
+  auditEvents          AuditEvent[]
+  memberships          Membership[]
+  invites              Invite[]
+  joinRequests         JoinRequest[]  // NOVO
+  defaultProfiles      Profile[]      @relation("ProfileDefaultTenant")
+  knowledgeBase        KnowledgeBase[]
 
   @@map("tenants")
 }
@@ -153,5 +160,87 @@ model AuditEvent {
   user   User?  @relation(fields: [userId], references: [id])
 
   @@map("audit_events")
+}
+
+// ========== MULTI-TENANT SPEC MODELS ==========
+
+// Profiles (vincula auth.users)
+model Profile {
+  userId          String   @id @map("user_id") @db.Uuid
+  defaultTenantId String?  @map("default_tenant_id") @db.Uuid
+  createdAt       DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+
+  // Relations
+  defaultTenant Tenant?      @relation("ProfileDefaultTenant", fields: [defaultTenantId], references: [id])
+  memberships   Membership[]
+
+  @@map("profiles")
+}
+
+// Memberships (many-to-many users/tenants)
+model Membership {
+  tenantId  String   @map("tenant_id") @db.Uuid
+  userId    String   @map("user_id") @db.Uuid
+  role      String   @db.VarChar(50) // owner, admin, member
+  createdAt DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+
+  // Relations
+  tenant  Tenant  @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  profile Profile @relation(fields: [userId], references: [userId], onDelete: Cascade)
+
+  @@id([tenantId, userId])
+  @@index([userId])
+  @@map("memberships")
+}
+
+// Base de Conhecimento (Knowledge Base)
+model KnowledgeBase {
+  id        String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  tenantId  String   @map("tenant_id") @db.Uuid
+  userId    String   @map("user_id") @db.Uuid
+  content   String   @db.Text
+  createdAt DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt DateTime @default(now()) @updatedAt @map("updated_at") @db.Timestamptz(6)
+
+  // Relations
+  tenant Tenant @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+
+  @@unique([tenantId]) // Um conhecimento por tenant
+  @@map("knowledge_base")
+}
+
+// NOVA TABELA: Join Requests
+model JoinRequest {
+  id          String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  tenantId    String    @map("tenant_id") @db.Uuid
+  userId      String    @map("user_id") @db.Uuid
+  companyName String    @map("company_name") @db.VarChar(255)
+  companyCode String    @map("company_code") @db.VarChar(255)
+  status      String    @default("pending") @db.VarChar(50) // pending, approved, rejected
+  approvedBy  String?   @map("approved_by") @db.Uuid
+  approvedAt  DateTime? @map("approved_at") @db.Timestamptz(6)
+  createdAt   DateTime  @default(now()) @map("created_at") @db.Timestamptz(6)
+
+  // Relations
+  tenant    Tenant @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  
+  @@unique([tenantId, userId])
+  @@map("join_requests")
+}
+
+// Invites (sistema de convites)
+model Invite {
+  id        String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  tenantId  String   @map("tenant_id") @db.Uuid
+  email     String   @db.VarChar(255)
+  role      String   @db.VarChar(50) // admin, member
+  status    String   @default("pending") @db.VarChar(50) // pending, accepted, revoked
+  createdAt DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+
+  // Relations
+  tenant Tenant @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+
+  @@unique([tenantId, email])
+  @@map("invites")
 }
 

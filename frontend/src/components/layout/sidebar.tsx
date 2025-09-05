@@ -14,33 +14,38 @@ import {
   BookOpenIcon,
   CheckBadgeIcon,
   BuildingOfficeIcon,
+  UserPlusIcon,
 } from '@heroicons/react/24/outline'
-import { usePathname } from 'next/navigation'
+import { usePathname, useParams } from 'next/navigation'
 import Link from 'next/link'
 import { cn } from '@/lib/utils'
 import { useAuth } from '@/components/providers'
+import { useTenant } from '@/hooks/useTenant'
+import { TenantSwitcher } from './tenant-switcher'
 
 interface SidebarProps {
   open: boolean
   onClose: () => void
 }
 
-const navigation = [
-  { name: 'Dashboard', href: '/', icon: HomeIcon },
-  { name: 'Leads', href: '/leads', icon: UsersIcon },
-  { name: 'Conversas', href: '/conversations', icon: ChatBubbleLeftRightIcon },
-  { name: 'Empresa & Membros', href: '/settings/empresa', icon: BuildingOfficeIcon },
-  { name: 'Base de Conhecimento', href: '/settings/knowledge', icon: BookOpenIcon },
+const getNavigation = (tenantSlug?: string, userRole?: string) => [
+  { name: 'Dashboard', href: tenantSlug ? `/app/${tenantSlug}/dashboard` : '/', icon: HomeIcon },
+  { name: 'Leads', href: tenantSlug ? `/app/${tenantSlug}/leads` : '/leads', icon: UsersIcon },
+  { name: 'Conversas', href: tenantSlug ? `/app/${tenantSlug}/conversations` : '/conversations', icon: ChatBubbleLeftRightIcon },
+  { name: 'Base de Conhecimento', href: tenantSlug ? `/app/${tenantSlug}/knowledge` : '/settings/knowledge', icon: BookOpenIcon },
   { name: 'Validação do Agente', href: '/settings/feedback', icon: CheckBadgeIcon },
-  { name: 'Exemplos', href: '/exemplos', icon: AcademicCapIcon },
+  { name: 'Configurações', href: tenantSlug ? `/app/${tenantSlug}/settings` : '/settings', icon: Cog6ToothIcon },
+  // Funcionalidades simplificadas
   { name: 'Upload CSV', href: '/upload', icon: DocumentArrowUpIcon },
-  { name: 'Relatórios', href: '/reports', icon: ChartBarIcon },
-  { name: 'Configurações', href: '/settings', icon: Cog6ToothIcon },
 ]
 
 export function Sidebar({ open, onClose }: SidebarProps) {
   const pathname = usePathname()
+  const params = useParams()
   const { user } = useAuth()
+  const tenantSlug = params?.tenantSlug as string
+  
+  const navigation = getNavigation(tenantSlug, user?.role)
 
   const SidebarContent = () => (
     <div className="flex flex-col h-full">
@@ -62,6 +67,13 @@ export function Sidebar({ open, onClose }: SidebarProps) {
           </div>
         </div>
       </div>
+
+      {/* Tenant Switcher */}
+      {tenantSlug && (
+        <div className="px-4 py-3 border-b border-gray-200">
+          <TenantSwitcher />
+        </div>
+      )}
 
       {/* Navigation */}
       <nav className="flex-1 px-4 py-6 space-y-1 overflow-y-auto">

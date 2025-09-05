@@ -1,6 +1,7 @@
 #!/usr/bin/env python3
 """
-Serviço de Qualificação de Leads - UNIFICADO (OpenAI-only)
+Serviço de Qualificação de Leads - HUMANIZADO
+Agora com conversação natural e fluida
 """
 
 import json
@@ -9,7 +10,8 @@ import structlog
 from services.openai_service import get_openai_service
 from services.simple_supabase import simple_supabase
 from services.simple_twilio import simple_twilio
-from services.n8n_service import n8n_service
+from services.humanized_conversation_service import humanized_conversation_service
+# from services.n8n_service import n8n_service  # REMOVIDO - N8N substituído por backend direto
 
 logger = structlog.get_logger()
 
@@ -17,10 +19,14 @@ class QualificationService:
     def __init__(self):
         """Inicializar serviço de qualificação"""
         self.qualification_threshold = 70  # Score mínimo para qualificação
+        self.use_humanized_conversation = True  # Flag para ativar conversação humanizada
     
     def _get_knowledge_base_context(self, tenant_id: str) -> str:
         """Buscar base de conhecimento do tenant"""
         try:
+            # Garantir que o cliente está inicializado
+            simple_supabase._ensure_client()
+            
             result = simple_supabase.client.table('knowledge_base') \
                 .select('content') \
                 .eq('tenant_id', tenant_id) \
@@ -78,8 +84,12 @@ IMPORTANTE: Use o contexto da empresa para responder dúvidas específicas, mas 
             session = simple_supabase.create_session(session_data)
             session_id = session['id']
             
-            # Mensagem inicial padronizada
-            initial_message = """Olá! 👋 
+            # Buscar base de conhecimento do tenant
+            tenant_id = '05dc8c52-c0a0-44ae-aa2a-eeaa01090a27'  # Default para demo
+            knowledge_context = self._get_knowledge_base_context(tenant_id)
+            
+            # Mensagem inicial personalizada com base de conhecimento
+            base_initial_message = """Olá! 👋 
 
 Vi que você tem interesse em investimentos. Para te conectar com o melhor especialista, preciso fazer algumas perguntas rápidas. Tudo bem?
 
@@ -89,6 +99,8 @@ A) Até R$ 50 mil
 B) R$ 50 mil a R$ 200 mil  
 C) R$ 200 mil a R$ 500 mil
 D) Mais de R$ 500 mil"""
+            
+            initial_message = self._inject_knowledge_in_prompt(base_initial_message, knowledge_context)
 
             # Enviar mensagem inicial
             send_result = simple_twilio.send_message(phone, initial_message)
@@ -145,7 +157,44 @@ D) Mais de R$ 500 mil"""
             }
 
     def process_lead_response(self, session_id: str, user_message: str) -> Dict:
-        """Processar resposta do lead usando APENAS OpenAI (UNIFICADO)"""
+        """
+        Processar resposta do lead - VERSÃO HUMANIZADA
+        Usa conversação natural em vez de perguntas robóticas
+        """
+        try:
+            # Verificar se deve usar conversação humanizada
+            if self.use_humanized_conversation:
+                logger.info("Processando com conversação humanizada", 
+                           session_id=session_id,
+                           user_message=user_message[:50])
+                
+                # Buscar tenant_id da sessão
+                session_result = simple_supabase.client.table('sessions') \
+                    .select('*, leads(tenant_id)') \
+                    .eq('id', session_id) \
+                    .execute()
+                
+                tenant_id = None
+                if session_result.data and session_result.data[0]['leads']:
+                    tenant_id = session_result.data[0]['leads']['tenant_id']
+                
+                # Usar serviço de conversação humanizada
+                return humanized_conversation_service.process_natural_conversation(
+                    session_id, user_message, tenant_id
+                )
+            
+            return self._process_robotic_conversation(session_id, user_message)
+            
+        except Exception as e:
+            logger.error("Erro no processamento de resposta", 
+                        session_id=session_id, error=str(e))
+            return {
+                "success": False,
+                "error": "Erro interno do servidor",
+                "message": "Desculpe, houve um problema. Pode repetir sua mensagem?"
+            }
+    
+    def _process_robotic_conversation(self, session_id: str, user_message: str) -> Dict:
         try:
             # Buscar sessão
             session = simple_supabase.get_session(session_id)
@@ -154,6 +203,11 @@ D) Mais de R$ 500 mil"""
                     'success': False,
                     'error': 'Sessão não encontrada'
                 }
+            
+            # Buscar base de conhecimento do tenant
+            lead = session.get('leads', {})
+            tenant_id = lead.get('tenant_id', '05dc8c52-c0a0-44ae-aa2a-eeaa01090a27')  # Default para demo
+            knowledge_context = self._get_knowledge_base_context(tenant_id)
             
             # Obter contexto da sessão
             context = session.get('context', {})
@@ -239,8 +293,18 @@ D) Mais de R$ 500 mil"""
             conversation_history.append({"role": "assistant", "content": ai_message})
 
             # Salvar mensagens no banco
-            simple_supabase.create_message(session_id, 'inbound', user_message)
-            simple_supabase.create_message(session_id, 'outbound', ai_message)
+            simple_supabase.create_message({
+                'session_id': session_id,
+                'direction': 'inbound',
+                'content': user_message,
+                'message_type': 'text'
+            })
+            simple_supabase.create_message({
+                'session_id': session_id,
+                'direction': 'outbound',
+                'content': ai_message,
+                'message_type': 'text'
+            })
 
             # Atualizar contexto da sessão
             updated_context = {
@@ -269,10 +333,11 @@ D) Mais de R$ 500 mil"""
                     'status': 'qualificado' if qualified else 'desqualificado'
                 })
 
-                # Notificar consultor se qualificado
+                # Notificar consultor se qualificado (DIRETO - sem N8N)
                 if qualified:
+                    from services.notification_service import notification_service
                     lead_data = simple_supabase.get_lead(lead_id)
-                    self._notify_consultant(lead_data, final_score)
+                    notification_service.notify_qualified_lead(lead_data, final_score, updated_context)
 
                 logger.info("Qualificação completada (OpenAI-only)", 
                            session_id=session_id,
@@ -300,48 +365,68 @@ D) Mais de R$ 500 mil"""
             }
 
     def _notify_consultant(self, lead_data: Dict, score: int) -> bool:
-        """Notificar consultor sobre lead qualificado via webhook local"""
+        """Notificar consultor sobre lead qualificado (DIRETO - sem N8N)"""
         try:
-            # Preparar payload para webhook local (que dispara email + CRM)
-            payload = {
-                'tenant_id': lead_data.get('tenant_id', '60675861-e22a-4990-bab8-65ed07632a63'),  # Tenant demo
-                'lead': {
-                    'id': lead_data['id'],
-                    'name': lead_data['name'],
-                    'email': lead_data.get('email', 'Não informado'),
-                    'phone': lead_data['phone'],
-                    'score': score,
-                    'origem': lead_data.get('origem', 'WhatsApp'),
-                    'created_at': lead_data.get('created_at')
-                }
+            from services.email_service import email_service
+            from services.crm_adapter import crm_adapter
+            
+            tenant_id = lead_data.get('tenant_id', '05dc8c52-c0a0-44ae-aa2a-eeaa01090a27')
+            
+            # Buscar configurações do tenant
+            tenant_result = simple_supabase.client.table('tenants') \
+                .select('settings') \
+                .eq('id', tenant_id) \
+                .single() \
+                .execute()
+            
+            tenant_settings = tenant_result.data.get('settings', {}) if tenant_result.data else {}
+            consultant_email = tenant_settings.get('default_consultant_email', 'consultor@exemplo.com')
+            
+            # Preparar dados para notificação
+            notification_payload = {
+                'lead_id': lead_data['id'],
+                'name': lead_data['name'],
+                'email': lead_data.get('email', 'Não informado'),
+                'phone': lead_data['phone'],
+                'score': score,
+                'status': 'qualificado',
+                'origem': 'WhatsApp',
+                'created_at': lead_data.get('created_at'),
+                'qualified_at': __import__('datetime').datetime.now().isoformat()
             }
-
-            # Chamar webhook local diretamente (mais confiável que N8N externo)
-            import requests
             
-            webhook_url = 'http://localhost:5000/api/hooks/qualified-lead'
-            
-            response = requests.post(
-                webhook_url,
-                json=payload,
-                headers={'Content-Type': 'application/json'},
-                timeout=30
+            # 1. Enviar email para consultor (DIRETO)
+            email_result = email_service.send_qualified_lead_email(
+                lead_data=notification_payload,
+                consultant_email=consultant_email
             )
             
-            if response.status_code == 200:
-                result_data = response.json()
-                logger.info("Consultor notificado via webhook local", 
-                           lead_id=lead_data['id'], 
-                           score=score,
-                           email_success=result_data.get('results', {}).get('email', {}).get('success', False),
-                           crm_success=result_data.get('results', {}).get('crm', {}).get('success', False))
-                return True
-            else:
-                logger.error("Falha no webhook de notificação", 
-                           lead_id=lead_data['id'], 
-                           status_code=response.status_code,
-                           response=response.text[:200])
-                return False
+            # 2. Enviar para CRM (DIRETO)
+            crm_result = crm_adapter.send_lead(
+                tenant_id=tenant_id,
+                lead_payload=notification_payload
+            )
+            
+            # 3. Atualizar lead no banco
+            simple_supabase.client.table('leads') \
+                .update({
+                    'status': 'qualificado',
+                    'score': score,
+                    'qualified_at': notification_payload['qualified_at']
+                }) \
+                .eq('id', lead_data['id']) \
+                .execute()
+            
+            email_success = email_result.get('success', False)
+            crm_success = crm_result.get('success', False) or crm_result.get('skipped', False)
+            
+            logger.info("Consultor notificado DIRETAMENTE (sem N8N)", 
+                       lead_id=lead_data['id'], 
+                       score=score,
+                       email_success=email_success,
+                       crm_success=crm_success)
+            
+            return email_success and crm_success
 
         except Exception as e:
             logger.error("Erro ao notificar consultor", 

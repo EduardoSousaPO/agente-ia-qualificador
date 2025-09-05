@@ -4,10 +4,11 @@ export interface User {
   id: string;
   email: string;
   name?: string;
-  role: 'admin' | 'closer' | 'operator';
+  role: 'admin' | 'closer' | 'operator' | 'member';
   tenant: {
     id: string;
     name: string;
+    slug?: string;
     domain?: string;
   };
   created_at: string;
@@ -22,7 +23,7 @@ export interface Lead {
   origem: string;
   inserido_manual: boolean;
   tags: string[];
-  status: 'novo' | 'em_conversa' | 'qualificado' | 'desqualificado';
+  status: 'new' | 'contacted' | 'qualified' | 'converted' | 'lost' | 'novo' | 'em_conversa' | 'qualificado' | 'desqualificado';
   score: number;
   created_at: string;
   updated_at: string;
@@ -35,7 +36,7 @@ export interface Session {
   id: string;
   lead_id: string;
   tenant_id: string;
-  status: 'ativa' | 'pausada' | 'finalizada';
+  status: 'active' | 'paused' | 'completed' | 'abandoned' | 'ativa' | 'pausada' | 'finalizada';
   current_step?: string;
   context: Record<string, any>;
   human_takeover?: boolean;
@@ -129,6 +130,8 @@ export interface ApiResponse<T> {
   error?: string;
   message?: string;
   success?: boolean;
+  ai_response?: string;
+  status_changed?: boolean;
 }
 
 export interface PaginatedResponse<T> {
@@ -136,7 +139,9 @@ export interface PaginatedResponse<T> {
   count: number;
   page: number;
   limit: number;
+  total: number;
   total_pages: number;
+  totalPages: number;
 }
 
 export interface LeadFilters {
@@ -160,6 +165,7 @@ export interface DashboardStats {
   leads_por_status: Record<string, number>;
   score_distribution: { range: string; count: number }[];
   timeline_leads: { date: string; count: number }[];
+  leads_chart?: { date: string; count: number }[];
 }
 
 export interface ChatMessage {
@@ -247,6 +253,8 @@ export interface ConversationFilters {
   human_takeover?: boolean;
   current_step?: string;
   search?: string;
+  dateFrom?: string;
+  dateTo?: string;
   created_after?: string;
   created_before?: string;
   page?: number;

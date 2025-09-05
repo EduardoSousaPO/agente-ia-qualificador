@@ -26,31 +26,45 @@ export default function LoginPage() {
     setLoading(true)
 
     try {
-      const response = await fetch('http://localhost:5000/api/auth/login', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({ email, password }),
+      // Importar Supabase de forma dinâmica para evitar SSR issues
+      const { createClient } = await import('@/lib/supabase')
+      const supabase = createClient()
+      
+      // Login otimizado - timeout de 5 segundos
+      const loginPromise = supabase.auth.signInWithPassword({
+        email,
+        password,
       })
+      
+      const timeoutPromise = new Promise((_, reject) => 
+        setTimeout(() => reject(new Error('Timeout')), 5000)
+      )
+      
+      const { data, error } = await Promise.race([loginPromise, timeoutPromise]) as any
 
-      const data = await response.json()
-
-      if (data.success) {
-        // Salvar token no localStorage (temporário para demo)
-        localStorage.setItem('demo_token', data.access_token)
-        localStorage.setItem('demo_user', JSON.stringify(data.user))
-        
-        await refreshUser()
-        toast.success('Login realizado com sucesso!')
-        router.push('/')
-      } else {
-        toast.error(data.error || 'Erro no login')
+      if (error) {
+        toast.error(error.message || 'Credenciais inválidas')
+        setLoading(false)
+        return
       }
-    } catch (error) {
-      console.error('Erro no login:', error)
-      toast.error('Erro de conexão')
-    } finally {
+
+      if (data.user) {
+        // Redirecionar IMEDIATAMENTE - máxima otimização
+        toast.success('Login realizado!')
+        setLoading(false)
+        router.push('/dashboard')
+        
+        // Não aguardar refreshUser - será executado pelo listener
+      } else {
+        toast.error('Erro no login')
+        setLoading(false)
+      }
+    } catch (error: any) {
+      if (error.message === 'Timeout') {
+        toast.error('Login demorou muito - tente novamente')
+      } else {
+        toast.error('Erro de conexão')
+      }
       setLoading(false)
     }
   }
@@ -71,16 +85,7 @@ export default function LoginPage() {
           </p>
         </div>
 
-        {/* Demo Credentials */}
-        <div className="bg-blue-50 border border-blue-200 rounded-lg p-4">
-          <h3 className="text-sm font-medium text-blue-800 mb-2">
-            🎭 Credenciais de Demonstração:
-          </h3>
-          <div className="text-sm text-blue-700">
-            <p><strong>Email:</strong> admin@demo.com</p>
-            <p><strong>Senha:</strong> demo123</p>
-          </div>
-        </div>
+
 
         {/* Login Form */}
         <form className="mt-8 space-y-6" onSubmit={handleLogin}>
@@ -158,9 +163,6 @@ export default function LoginPage() {
         <div className="text-center">
           <p className="text-xs text-gray-500">
             Sistema de Qualificação de Leads via WhatsApp
-          </p>
-          <p className="text-xs text-gray-400 mt-1">
-            Versão 1.0 - Desenvolvido com ❤️
           </p>
         </div>
       </div>

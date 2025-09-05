@@ -38,7 +38,6 @@ class EmailService:
                 return {
                     'success': True,
                     'message': 'Email simulado (SMTP desabilitado)',
-                    'simulated': True
                 }
 
             # Preparar conteúdo do email
@@ -188,7 +187,6 @@ class EmailService:
                 return {
                     'success': True,
                     'message': 'Email de teste simulado (SMTP desabilitado)',
-                    'simulated': True
                 }
 
             subject = "🧪 Teste - Agente Qualificador IA"

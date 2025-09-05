@@ -16,7 +16,7 @@ interface ChatInterfaceProps {
   onSendMessage: (content: string) => void
   sending: boolean
   humanTakeover: boolean
-  messagesEndRef: React.RefObject<HTMLDivElement>
+  messagesEndRef: React.RefObject<HTMLDivElement | null>
 }
 
 export function ChatInterface({

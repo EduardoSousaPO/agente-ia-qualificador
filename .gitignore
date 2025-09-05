@@ -11,6 +11,7 @@ __pycache__/
 # Arquivos de ambiente (manter apenas .example)
 .env
 .env.local
+.env.local.backend
 .env.production
 .env.development.local
 backend/.env

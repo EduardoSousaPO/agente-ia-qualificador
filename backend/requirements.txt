@@ -1,41 +1,40 @@
 # Flask e extensões
-Flask==3.0.0
-Flask-CORS==4.0.0
-Flask-JWT-Extended==4.6.0
-Werkzeug==3.0.1
+Flask
+Flask-CORS
+Flask-JWT-Extended
+Werkzeug
 
 # Banco de dados
-supabase==2.3.4
-psycopg2-binary==2.9.9
-SQLAlchemy==2.0.25
+supabase
+psycopg2-binary
+SQLAlchemy
 
 # APIs externas
-openai==1.12.0
-twilio==8.12.0
-requests==2.31.0
+openai
+twilio
+requests
 
 # Utilitários
-python-dotenv==1.0.0
-pydantic==2.5.3
-marshmallow==3.20.2
+python-dotenv
+pydantic
+marshmallow
 
 # Desenvolvimento e testes
-pytest==7.4.4
-pytest-flask==1.3.0
-black==23.12.1
-flake8==7.0.0
+pytest
+pytest-flask
+black
+flake8
 
 # Logs e monitoramento
-structlog==23.2.0
+structlog
 
 # Validação e serialização
-cerberus==1.3.5
+cerberus
 
 # Criptografia e segurança
-cryptography>=42.0.0
-bcrypt==4.1.2
+cryptography
+bcrypt
 
 # Async support
-asyncio==3.4.3
-aiohttp==3.9.1
-
+asyncio
+aiohttp

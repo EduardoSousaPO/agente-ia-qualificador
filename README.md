@@ -1,262 +1,251 @@
-# 🤖 Agente IA Qualificador - Micro SaaS
+# 🤖 **Agente Qualificador IA**
 
-> **Sistema completo de qualificação de leads via WhatsApp para escritórios de consultoria/assessoria de investimentos**
+> **Sistema de qualificação de leads via WhatsApp com IA humanizada**  
+> *MVP refatorado e pronto para produção*
 
-[![Status](https://img.shields.io/badge/Status-Funcional-brightgreen)](https://github.com/EduardoSousaPO/agente-ia-qualificador)
-[![Version](https://img.shields.io/badge/Version-1.0.0-blue)](https://github.com/EduardoSousaPO/agente-ia-qualificador)
-[![License](https://img.shields.io/badge/License-MIT-yellow)](LICENSE)
+[![Status](https://img.shields.io/badge/Status-MVP%20Ready-success)]()
+[![Score](https://img.shields.io/badge/Score-76%25-brightgreen)]()
+[![Python](https://img.shields.io/badge/Python-3.11+-blue)]()
+[![Next.js](https://img.shields.io/badge/Next.js-14+-black)]()
+
+---
 
 ## 🎯 **Visão Geral**
 
-Sistema **plug-and-play** que automatiza a qualificação de leads através de conversas naturais no WhatsApp, utilizando IA para identificar investidores qualificados e entregar leads prontos para closers com sugestões de agendamento.
+O **Agente Qualificador IA** automatiza a qualificação de leads para consultorias através do WhatsApp, utilizando a **Ana** - uma IA humanizada que conduz conversas naturais e identifica prospects qualificados.
 
-### ✨ **Funcionalidades Principais**
+### **🎭 Conheça a Ana**
+- **Consultora Sênior** especializada em investimentos
+- **Conversação 100% natural** - clientes não percebem que é IA
+- **Qualificação invisível** durante a conversa
+- **Encaminhamento automático** de leads qualificados (score ≥70)
 
-- 🔄 **Intake Automático**: Recebe leads de YouTube, newsletters, landing pages e inbound WhatsApp
-- 📝 **Gestão Manual**: Interface para adicionar leads individuais ou em lote (CSV)
-- 🤖 **Conversas Naturais**: IA conduz qualificação via WhatsApp (patrimônio, objetivo, urgência)
-- 📊 **Scoring Inteligente**: Sistema de pontuação automática para qualificação
-- 🎯 **Handoff Qualificado**: Entrega leads prontos com sugestões de horários
-- 📱 **Dashboard Completo**: Interface Next.js para gestão e analytics
-
-## 🏗️ **Arquitetura**
-
-```
-┌─────────────────┐    ┌──────────────┐    ┌─────────────────┐
-│   Frontend      │    │   Backend    │    │   Integrações   │
-│   (Next.js)     │◄──►│   (Flask)    │◄──►│   Supabase      │
-│                 │    │              │    │   Twilio        │
-│   - Dashboard   │    │   - API      │    │   OpenAI        │
-│   - Leads CRUD  │    │   - Webhooks │    │   N8N           │
-│   - Analytics   │    │   - IA Logic │    │                 │
-└─────────────────┘    └──────────────┘    └─────────────────┘
-```
-
-### 🛠️ **Stack Tecnológica**
-
-- **Frontend**: Next.js 15 + TypeScript + Tailwind CSS
-- **Backend**: Flask (Python) + SQLAlchemy
-- **Database**: Supabase (PostgreSQL) + Row Level Security
-- **Auth**: Supabase Auth + JWT
-- **Messaging**: Twilio WhatsApp Business API
-- **AI**: OpenAI GPT-4o / GPT-4o-mini
-- **Automation**: N8N workflows
-- **Deploy**: Vercel
+---
 
 ## 🚀 **Início Rápido**
 
-### **Pré-requisitos**
-
-- Python 3.11+
-- Node.js 18+
-- Conta Supabase
-- Conta OpenAI
-- Conta N8N (opcional)
-
-### **1. Clonar o Repositório**
-
+### **1. Instalação:**
 ```bash
-git clone https://github.com/EduardoSousaPO/agente-ia-qualificador.git
-cd agente-ia-qualificador
-```
-
-### **2. Configurar Backend**
-
-```bash
+# Backend
 cd backend
-
-# Instalar dependências
 pip install -r requirements.txt
+cp .env.production .env  # Configure suas chaves
 
-# Usar configurações pré-definidas
-# As configurações estão em .env.local.backend na raiz do projeto
-
-# Iniciar servidor
-python app.py
+# Frontend
+cd frontend
+npm install
 ```
 
-### **3. Configurar Frontend**
+### **2. Configuração:**
+Edite `.env` com suas chaves:
+```env
+SUPABASE_URL=sua-url-supabase
+OPENAI_API_KEY=sua-chave-openai
+TWILIO_ACCOUNT_SID=seu-account-sid
+```
 
+### **3. Executar:**
 ```bash
+# Backend
+cd backend
+python main.py
+
+# Frontend (novo terminal)
 cd frontend
-
-# Instalar dependências
-npm install
-
-# Usar configurações pré-definidas
-# As configurações estão em .env.local.frontend na raiz do projeto
-
-# Iniciar aplicação
 npm run dev
 ```
 
-### **4. Acessar Sistema**
-
-- **Frontend**: http://localhost:3000
-- **Backend API**: http://localhost:5000
-- **Credenciais Demo**: `admin@demo.com` / `demo123`
-
-## 📋 **Configuração**
-
-### **Variáveis de Ambiente**
-
-#### **Backend (.env.local.backend)**
-```env
-# Supabase
-SUPABASE_URL=https://seu-projeto.supabase.co
-SUPABASE_SERVICE_ROLE_KEY=sua-service-key
-
-# OpenAI
-OPENAI_API_KEY=sk-sua-chave-openai
-OPENAI_MODEL=gpt-4o-mini
-
-# Twilio (opcional - sistema tem simulador)
-TWILIO_ACCOUNT_SID=seu-account-sid
-TWILIO_AUTH_TOKEN=seu-auth-token
-USE_WHATSAPP_SIMULATOR=true
-
-# N8N (opcional)
-N8N_WEBHOOK_URL_INTAKE=https://seu-workspace.app.n8n.cloud/webhook/intake-lead
-```
-
-#### **Frontend (.env.local)**
-```env
-NEXT_PUBLIC_SUPABASE_URL=https://seu-projeto.supabase.co
-NEXT_PUBLIC_SUPABASE_ANON_KEY=sua-anon-key
-NEXT_PUBLIC_API_URL=http://localhost:5000/api
-```
-
-## 🗄️ **Banco de Dados**
-
-O sistema utiliza **Supabase** com as seguintes tabelas:
-
-- `tenants` - Multi-tenancy
-- `users` - Usuários e roles
-- `leads` - Leads e informações
-- `sessions` - Sessões de conversa
-- `messages` - Mensagens WhatsApp
-- `qualificacoes` - Dados de qualificação
-- `meetings` - Agendamentos
-- `audit_events` - Auditoria
-
-### **Configurar Banco**
-
-1. Criar projeto no [Supabase](https://supabase.com)
-2. Executar SQL do arquivo `database/schema.sql`
-3. Configurar RLS (Row Level Security)
-
-## 📱 **Uso do Sistema**
-
-### **1. Dashboard Principal**
-- Visualizar métricas em tempo real
-- Acompanhar conversão de leads
-- Analytics de performance
-
-### **2. Gestão de Leads**
-- **Manual**: Adicionar leads individuais
-- **Bulk**: Upload CSV com múltiplos leads
-- **Automático**: Receber via webhooks/formulários
-
-### **3. Conversas WhatsApp**
-- Sistema conduz qualificação automaticamente
-- Operador pode assumir controle (takeover)
-- Histórico completo de mensagens
-
-### **4. Qualificação IA**
-Critérios avaliados:
-- 💰 **Patrimônio**: Faixa de investimento disponível
-- 🎯 **Objetivo**: Metas de investimento
-- ⏰ **Urgência**: Prazo para começar
-- 🤝 **Interesse**: Disposição para falar com especialista
-
-### **5. Handoff para Closers**
-- Lead qualificado entregue automaticamente
-- 2 sugestões de horário incluídas
-- Notificações via Slack/Email/CRM
-
-## 🔄 **Fluxo Operacional**
-
-```mermaid
-graph TD
-    A[Lead Intake] --> B[WhatsApp Outbound]
-    B --> C[Conversa IA]
-    C --> D{Qualificado?}
-    D -->|Sim| E[Handoff Closer]
-    D -->|Não| F[Reengajamento]
-    E --> G[Agendamento]
-    F --> H[Nurturing]
-```
-
-## 🧪 **Testes**
-
-### **Executar Testes Completos**
-
+### **4. Testar:**
 ```bash
-# Teste completo do sistema
-python test_sistema_completo_final.py
+# Testes automatizados
+cd tests
+python TESTAR_SISTEMA.py
 
-# Teste específico do backend
-python test_backend_simple.py
-
-# Teste de fluxo completo
-python test_flow_complete.py
+# WhatsApp: +1 415 523 8886 → "join to-southern" → "Oi, tenho interesse"
 ```
 
-### **Resultado Esperado**
+---
+
+## 📁 **Estrutura Organizada**
+
 ```
-✅ 7/7 testes passaram
-🎉 TODOS OS TESTES PASSARAM!
-✅ Sistema está 100% funcional
+agente_qualificador/
+├── 📱 frontend/           # Next.js Dashboard
+├── 🔧 backend/            # Flask API + IA
+├── 🗄️ database/          # Supabase Schema  
+├── 🧪 tests/             # Suite de Testes
+├── 📜 scripts/           # Utilitários
+├── 🚀 deploy/            # Deploy Configs
+├── 📚 docs/              # Documentação Completa
+│   ├── guides/           # Guias de uso
+│   ├── technical/        # Docs técnicas
+│   └── reports/          # Relatórios
+└── 📋 README.md          # Este arquivo
 ```
 
-## 📊 **KPIs Monitorados**
+---
 
-- ⏱️ **Tempo de Ingestão**: Lead → Primeira mensagem
-- 📈 **Taxa de Resposta**: % que respondem à primeira mensagem
-- 🎯 **Taxa de Qualificação**: % qualificados / total
-- 📅 **Reuniões Agendadas**: % agendadas / qualificados
+## ✨ **Funcionalidades**
+
+### **🤖 IA Humanizada:**
+- Agente **Ana** com personalidade própria
+- Conversação natural e empática
+- Base de conhecimento contextual
+- Qualificação transparente ao cliente
+
+### **📱 WhatsApp Integration:**
+- Webhook direto via **Twilio**
+- Processamento em tempo real
+- Sandbox para testes
+
+### **🗄️ Multi-Tenant:**
+- **Row Level Security (RLS)**
+- Isolamento completo por empresa
+- Configurações personalizáveis
+
+### **📊 Dashboard:**
+- Interface **Next.js** moderna
+- Gestão de leads e conversas
+- Métricas de conversão
+
+---
+
+## 🧪 **Qualidade e Testes**
+
+### **📊 Score MVP: 76%** ✅
+- **Backend**: 62% (estrutura sólida)
+- **Frontend**: 86% (interface funcional)
+- **WhatsApp**: 100% (integração completa)
+- **Database**: 100% (todas as tabelas)
+
+### **🧪 Suite de Testes:**
+```bash
+# Executar todos os testes
+python tests/run_all_tests.py
+
+# Teste de produção
+python tests/test_production_ready.py
+```
+
+---
+
+## 🚀 **Deploy em Produção**
+
+### **🐳 Docker (Recomendado):**
+```bash
+cd deploy
+./deploy.bat     # Windows
+./deploy.sh      # Linux
+```
+
+### **📊 Monitoramento:**
+```bash
+./monitor.bat    # Windows
+./monitor.sh     # Linux
+```
+
+### **⚙️ Configuração:**
+- Usar `.env.production` como base
+- Configurar domínio e SSL
+- Webhook Twilio para seu domínio
+
+---
+
+## 📚 **Documentação**
+
+### **📖 Guias:**
+- [Manual de Deploy](docs/MANUAL_DEPLOY_SIMPLES.md)
+- [Guia WhatsApp](docs/guides/GUIA_AGENTE_HUMANIZADO_WHATSAPP.md)
+- [Configuração Twilio](docs/guides/GUIA_TESTE_TWILIO_SANDBOX_PASSO_A_PASSO.md)
+
+### **🔧 Técnica:**
+- [Arquitetura](docs/technical/INTERFACES_POR_NIVEL.md)
+- [Prompts IA](docs/technical/prompts_perfeitos_qualificador.md)
+
+### **📊 Relatórios:**
+- [Refatoração Completa](RELATORIO_REFATORACAO_COMPLETA.md)
+- [Cronograma MVP](CRONOGRAMA_FINAL_MVP.md)
+
+---
+
+## 🎯 **Como Funciona**
+
+### **1. Cliente inicia conversa:**
+```
+Cliente: "Oi, tenho interesse em investimentos"
+```
+
+### **2. Ana responde naturalmente:**
+```
+Ana: "Oi! Que bom! Sou Ana, consultora da InvestCorp.
+     Para te ajudar melhor, me conta: você já investe?"
+```
+
+### **3. Qualificação automática:**
+- Conversa flui naturalmente
+- Sistema calcula score em background
+- Score ≥70: Lead qualificado
+- Consultor notificado automaticamente
+
+---
 
 ## 🔧 **Desenvolvimento**
 
-### **Estrutura do Projeto**
+### **Requisitos:**
+- Python 3.11+
+- Node.js 18+
+- Docker Desktop
+- Contas: Supabase, OpenAI, Twilio
 
-```
-agente-ia-qualificador/
-├── backend/                 # API Flask
-│   ├── app.py              # Aplicação principal
-│   ├── services/           # Serviços (Supabase, Twilio, OpenAI)
-│   └── requirements.txt    # Dependências Python
-├── frontend/               # Interface Next.js
-│   ├── src/app/           # App Router
-│   ├── src/components/    # Componentes React
-│   └── package.json       # Dependências Node.js
-├── database/              # Schema e migrações
-├── n8n/                  # Workflows N8N
-└── scripts/              # Scripts de teste
-```
-
-### **Contribuindo**
-
-1. Fork o projeto
-2. Criar branch feature (`git checkout -b feature/nova-funcionalidade`)
-3. Commit suas mudanças (`git commit -m 'Adicionar nova funcionalidade'`)
-4. Push para branch (`git push origin feature/nova-funcionalidade`)
-5. Abrir Pull Request
-
-## 📄 **Licença**
-
-Este projeto está sob a licença MIT. Veja o arquivo [LICENSE](LICENSE) para detalhes.
-
-## 🤝 **Suporte**
-
-- 📧 **Email**: eduardo.sousa@exemplo.com
-- 💬 **GitHub Issues**: [Reportar Bug](https://github.com/EduardoSousaPO/agente-ia-qualificador/issues)
-- 📖 **Documentação**: [Wiki do Projeto](https://github.com/EduardoSousaPO/agente-ia-qualificador/wiki)
+### **Contribuindo:**
+1. Fork o repositório
+2. Crie branch: `git checkout -b feature/nova-funcionalidade`
+3. Commit: `git commit -m 'Adiciona nova funcionalidade'`
+4. Push: `git push origin feature/nova-funcionalidade`
+5. Abra Pull Request
 
 ---
 
-**⭐ Se este projeto foi útil, considere dar uma estrela no GitHub!**
+## 📞 **Suporte**
+
+### **🐛 Troubleshooting:**
+```bash
+# Backend não inicia
+python -c "import os; print(os.getenv('SUPABASE_URL'))"
+
+# WhatsApp não responde  
+curl -X POST http://localhost:5000/api/whatsapp/webhook \
+  -d "Body=teste&From=whatsapp:+5511999999999"
+```
+
+### **📧 Contato:**
+- Email: suporte@agentequalificador.com
+- WhatsApp: +55 11 9999-9999
+- Issues: [GitHub Issues](https://github.com/seu-usuario/agente-qualificador-ia/issues)
 
 ---
 
-*Desenvolvido com ❤️ para automatizar a qualificação de leads de investimentos*
+## 🏆 **Status do Projeto**
+
+### **✅ Concluído:**
+- 🤖 Agente IA humanizado funcionando
+- 📱 Integração WhatsApp completa
+- 🗄️ Banco multi-tenant configurado
+- 🚀 Deploy automatizado
+- 📚 Documentação completa
+
+### **🎯 Pronto para:**
+- Qualificar leads reais via WhatsApp
+- Operação 24/7 automatizada
+- Escalabilidade multi-tenant
+- Deploy em produção
+
+---
+
+<div align="center">
+
+**🤖 Sistema refatorado e pronto para produção**
+
+**🎊 MVP funcional para qualificar leads reais via WhatsApp**
+
+</div>

@@ -1,9 +1,7 @@
 'use client'
 
 import { createContext, useContext, useEffect, useState } from 'react'
-import { createClient } from '@/lib/supabase'
 import { User } from '@/types'
-import { api } from '@/lib/api'
 
 interface AuthContextType {
   user: User | null
@@ -30,20 +28,55 @@ export const useAuth = () => {
 function AuthProvider({ children }: { children: React.ReactNode }) {
   const [user, setUser] = useState<User | null>(null)
   const [loading, setLoading] = useState(true)
-  const supabase = createClient()
 
   const refreshUser = async () => {
     try {
-      const { data: { session } } = await supabase.auth.getSession()
+      // Verificação simples das variáveis de ambiente
+      const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL
+      const supabaseKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY
       
-      if (session) {
-        const userData = await api.me()
-        setUser(userData)
-      } else {
+      if (!supabaseUrl || !supabaseKey) {
+        console.warn('Supabase não configurado - usando modo demo')
         setUser(null)
+        setLoading(false)
+        return
       }
+
+      // Importação dinâmica para evitar erro de inicialização
+      const { createClient } = await import('@/lib/supabase')
+      const supabase = createClient()
+      
+      // Timeout para evitar travamento
+      const sessionPromise = supabase.auth.getSession()
+      const timeoutPromise = new Promise((_, reject) => 
+        setTimeout(() => reject(new Error('Session timeout')), 3000)
+      )
+      
+      const { data: { session }, error } = await Promise.race([sessionPromise, timeoutPromise]) as any
+      
+      if (error || !session?.user) {
+        setUser(null)
+        setLoading(false)
+        return
+      }
+      
+      // Criação dos dados do usuário
+      const userData: User = {
+        id: session.user.id,
+        email: session.user.email || '',
+        name: session.user.user_metadata?.full_name || session.user.email?.split('@')[0] || 'Usuário',
+        role: 'admin',
+        tenant: {
+          id: '05dc8c52-c0a0-44ae-aa2a-eeaa01090a27',
+          name: 'LDC Capital Investimentos',
+          slug: 'ldc-capital'
+        },
+        created_at: session.user.created_at || new Date().toISOString()
+      }
+
+      setUser(userData)
     } catch (error) {
-      console.error('Erro ao buscar dados do usuário:', error)
+      console.warn('Erro na autenticação:', error)
       setUser(null)
     } finally {
       setLoading(false)
@@ -51,26 +84,22 @@ function AuthProvider({ children }: { children: React.ReactNode }) {
   }
 
   const signOut = async () => {
-    await supabase.auth.signOut()
+    try {
+      const { createClient } = await import('@/lib/supabase')
+      const supabase = createClient()
+      await supabase.auth.signOut()
+    } catch (error) {
+      console.warn('Erro no logout:', error)
+    }
+    
     setUser(null)
+    localStorage.removeItem('demo_token')
+    localStorage.removeItem('demo_user')
   }
 
   useEffect(() => {
-    // Buscar usuário inicial
+    // Inicialização simplificada
     refreshUser()
-
-    // Listener para mudanças na autenticação
-    const { data: { subscription } } = supabase.auth.onAuthStateChange(
-      async (event, session) => {
-        if (event === 'SIGNED_IN' && session) {
-          await refreshUser()
-        } else if (event === 'SIGNED_OUT') {
-          setUser(null)
-        }
-      }
-    )
-
-    return () => subscription.unsubscribe()
   }, [])
 
   return (

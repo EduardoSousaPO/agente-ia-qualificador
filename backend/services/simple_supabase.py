@@ -12,10 +12,19 @@ logger = structlog.get_logger()
 
 class SimpleSupabaseService:
     def __init__(self):
+        """Inicializar serviço Supabase com carregamento robusto"""
+        # Garantir carregamento do .env
+        self._load_environment()
+        
         self.url = None
         self.service_key = None
         self.client = None
+        self._ensure_client()
     
+    def _load_environment(self):
+        """Carregar variáveis de ambiente - APENAS .env real"""
+        from dotenv import load_dotenv
+        load_dotenv()  # Carrega apenas o .env do diretório atual
     def _ensure_client(self):
         """Garantir que o cliente está inicializado"""
         if self.client is None:
@@ -89,6 +98,20 @@ class SimpleSupabaseService:
             logger.error("Erro ao buscar mensagens", error=str(e))
             return []
     
+    def get_lead(self, lead_id: str) -> Optional[Dict]:
+        """Buscar lead por ID"""
+        try:
+            self._ensure_client()
+            result = self.client.table('leads')\
+                .select('*')\
+                .eq('id', lead_id)\
+                .execute()
+            
+            return result.data[0] if result.data else None
+        except Exception as e:
+            logger.error("Erro ao buscar lead", error=str(e))
+            return None
+    
     def update_lead(self, lead_id: str, update_data: Dict) -> bool:
         """Atualizar lead"""
         try:
@@ -101,6 +124,42 @@ class SimpleSupabaseService:
         except Exception as e:
             logger.error("Erro ao atualizar lead", error=str(e))
             return False
+    
+    def get_sessions_by_tenant(self, tenant_id: str, limit: int = 20, offset: int = 0) -> Dict:
+        """Buscar sessões por tenant com paginação"""
+        try:
+            self._ensure_client()
+            
+            response = self.client.table('sessions').select(
+                'id, lead_id, status, current_step, context, created_at, updated_at, leads(phone, name)'
+            ).eq('tenant_id', tenant_id).order('created_at', desc=True).limit(limit).offset(offset).execute()
+            
+            # Contar total
+            count_response = self.client.table('sessions').select('id', count='exact').eq('tenant_id', tenant_id).execute()
+            
+            return {
+                'data': response.data,
+                'count': count_response.count if count_response.count else 0
+            }
+            
+        except Exception as e:
+            logger.error(f"Erro ao buscar sessões: {str(e)}")
+            return {'data': [], 'count': 0}
+    
+    def get_messages_by_session(self, session_id: str) -> list:
+        """Buscar mensagens de uma sessão específica"""
+        try:
+            self._ensure_client()
+            
+            response = self.client.table('messages').select(
+                'id, session_id, direction, content, message_type, created_at'
+            ).eq('session_id', session_id).order('created_at', desc=False).execute()
+            
+            return response.data
+            
+        except Exception as e:
+            logger.error(f"Erro ao buscar mensagens da sessão {session_id}: {str(e)}")
+            return []
 
 # Instância global
 simple_supabase = SimpleSupabaseService()

@@ -1,8 +1,8 @@
 from flask import Blueprint, request, jsonify
 from flask_jwt_extended import jwt_required, get_jwt
 import structlog
-from services.supabase_service import supabase_service
-from services.twilio_service import twilio_service
+from services.simple_supabase import simple_supabase
+from services.simple_twilio import simple_twilio
 
 logger = structlog.get_logger()
 
@@ -27,7 +27,7 @@ async def get_chat_history(session_id):
         tenant_id = user_info['tenant_id']
         
         # Buscar sessão e verificar se pertence ao tenant
-        session = await supabase_service.get_session(session_id)
+        session = await simple_supabase.get_session(session_id)
         
         if not session:
             return jsonify({"error": "Sessão não encontrada"}), 404
@@ -37,7 +37,7 @@ async def get_chat_history(session_id):
             return jsonify({"error": "Acesso negado"}), 403
         
         # Buscar mensagens
-        messages = await supabase_service.get_messages(session_id)
+        messages = await simple_supabase.get_messages(session_id)
         
         # Buscar dados do lead
         lead = session['leads']
@@ -85,7 +85,7 @@ async def send_message(session_id):
             return jsonify({"error": "Mensagem é obrigatória"}), 400
         
         # Buscar sessão
-        session = await supabase_service.get_session(session_id)
+        session = await simple_supabase.get_session(session_id)
         
         if not session:
             return jsonify({"error": "Sessão não encontrada"}), 404
@@ -94,7 +94,7 @@ async def send_message(session_id):
             return jsonify({"error": "Acesso negado"}), 403
         
         # Enviar mensagem via WhatsApp
-        send_result = await twilio_service.send_message(
+        send_result = await simple_twilio.send_message(
             session['leads']['phone'],
             message
         )
@@ -114,7 +114,7 @@ async def send_message(session_id):
             'twilio_sid': send_result['message_sid']
         }
         
-        saved_message = await supabase_service.create_message(message_data)
+        saved_message = await simple_supabase.create_message(message_data)
         
         # Marcar sessão como takeover humano
         context = session.get('context', {})
@@ -122,13 +122,13 @@ async def send_message(session_id):
         context['takeover_user_id'] = user_id
         context['takeover_at'] = saved_message['created_at']
         
-        await supabase_service.update_session(session_id, {
+        await simple_supabase.update_session(session_id, {
             'context': context,
             'current_step': 'human_takeover'
         })
         
         # Log de auditoria
-        await supabase_service.log_audit_event(
+        await simple_supabase.log_audit_event(
             tenant_id=tenant_id,
             user_id=user_id,
             action="human_takeover_message",
@@ -166,7 +166,7 @@ async def takeover_session(session_id):
         user_id = user_info['user_id']
         
         # Buscar sessão
-        session = await supabase_service.get_session(session_id)
+        session = await simple_supabase.get_session(session_id)
         
         if not session:
             return jsonify({"error": "Sessão não encontrada"}), 404
@@ -178,18 +178,18 @@ async def takeover_session(session_id):
         context = session.get('context', {})
         context['human_takeover'] = True
         context['takeover_user_id'] = user_id
-        context['takeover_at'] = supabase_service.client.table('sessions')\
+        context['takeover_at'] = simple_supabase.client.table('sessions')\
             .select('now() as timestamp')\
             .execute().data[0]['timestamp']
         
-        await supabase_service.update_session(session_id, {
+        await simple_supabase.update_session(session_id, {
             'status': 'pausada',
             'context': context,
             'current_step': 'human_takeover'
         })
         
         # Log de auditoria
-        await supabase_service.log_audit_event(
+        await simple_supabase.log_audit_event(
             tenant_id=tenant_id,
             user_id=user_id,
             action="session_takeover",
@@ -220,7 +220,7 @@ async def resume_ai_session(session_id):
         user_id = user_info['user_id']
         
         # Buscar sessão
-        session = await supabase_service.get_session(session_id)
+        session = await simple_supabase.get_session(session_id)
         
         if not session:
             return jsonify({"error": "Sessão não encontrada"}), 404
@@ -232,18 +232,18 @@ async def resume_ai_session(session_id):
         context = session.get('context', {})
         context['human_takeover'] = False
         context['resumed_by_user_id'] = user_id
-        context['resumed_at'] = supabase_service.client.table('sessions')\
+        context['resumed_at'] = simple_supabase.client.table('sessions')\
             .select('now() as timestamp')\
             .execute().data[0]['timestamp']
         
-        await supabase_service.update_session(session_id, {
+        await simple_supabase.update_session(session_id, {
             'status': 'ativa',
             'context': context
             # current_step mantém o último step da IA
         })
         
         # Log de auditoria
-        await supabase_service.log_audit_event(
+        await simple_supabase.log_audit_event(
             tenant_id=tenant_id,
             user_id=user_id,
             action="session_resume_ai",
@@ -277,7 +277,7 @@ async def close_session(session_id):
         reason = data.get('reason', 'Finalizada manualmente')
         
         # Buscar sessão
-        session = await supabase_service.get_session(session_id)
+        session = await simple_supabase.get_session(session_id)
         
         if not session:
             return jsonify({"error": "Sessão não encontrada"}), 404
@@ -289,17 +289,17 @@ async def close_session(session_id):
         context = session.get('context', {})
         context['closed_by_user_id'] = user_id
         context['close_reason'] = reason
-        context['closed_at'] = supabase_service.client.table('sessions')\
+        context['closed_at'] = simple_supabase.client.table('sessions')\
             .select('now() as timestamp')\
             .execute().data[0]['timestamp']
         
-        await supabase_service.update_session(session_id, {
+        await simple_supabase.update_session(session_id, {
             'status': 'finalizada',
             'context': context
         })
         
         # Log de auditoria
-        await supabase_service.log_audit_event(
+        await simple_supabase.log_audit_event(
             tenant_id=tenant_id,
             user_id=user_id,
             action="session_closed",

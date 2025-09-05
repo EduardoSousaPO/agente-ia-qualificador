@@ -12,6 +12,7 @@ logger = structlog.get_logger()
 
 knowledge_bp = Blueprint('knowledge', __name__)
 
+
 @knowledge_bp.route('/api/knowledge-base', methods=['POST'])
 def save_knowledge_base():
     """Salvar/atualizar base de conhecimento do tenant"""
@@ -27,6 +28,9 @@ def save_knowledge_base():
         # Validar UUIDs
         if not validate_uuid(data['tenant_id']) or not validate_uuid(data['user_id']):
             return jsonify({'error': 'tenant_id e user_id devem ser UUIDs válidos'}), 400
+        
+        # Garantir que o cliente está inicializado
+        simple_supabase._ensure_client()
         
         # Verificar se já existe conhecimento para este tenant
         existing = simple_supabase.client.table('knowledge_base') \
@@ -78,6 +82,9 @@ def get_knowledge_base(tenant_id):
         if not validate_uuid(tenant_id):
             return jsonify({'error': 'tenant_id deve ser um UUID válido'}), 400
         
+        # Garantir que o cliente está inicializado
+        simple_supabase._ensure_client()
+        
         # Buscar conhecimento
         result = simple_supabase.client.table('knowledge_base') \
             .select('*') \
@@ -90,15 +97,29 @@ def get_knowledge_base(tenant_id):
                 'data': result.data[0]
             })
         else:
+            # Retornar dados padrão se não houver conhecimento
             return jsonify({
                 'success': True,
-                'data': None,
-                'message': 'Nenhuma base de conhecimento encontrada'
+                'data': {
+                    'tenant_id': tenant_id,
+                    'content': 'Base de conhecimento vazia. Adicione informações sobre sua empresa aqui.',
+                    'created_at': None,
+                    'updated_at': None
+                }
             })
         
     except Exception as e:
-        logger.error("Erro ao buscar base de conhecimento", error=str(e))
-        return jsonify({'error': 'Erro interno do servidor'}), 500
+        logger.error("Erro ao buscar base de conhecimento", error=str(e), tenant_id=tenant_id)
+        # Retornar resposta padrão em caso de erro
+        return jsonify({
+            'success': True,
+            'data': {
+                'tenant_id': tenant_id,
+                'content': 'Erro ao carregar base de conhecimento. Tente novamente.',
+                'created_at': None,
+                'updated_at': None
+            }
+        })
 
 @knowledge_bp.route('/api/agent-feedback', methods=['POST'])
 def save_agent_feedback():

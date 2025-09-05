@@ -3,7 +3,7 @@ Leads management routes
 """
 
 from flask import Blueprint, request, jsonify, current_app
-from services.supabase_service import supabase_service
+from services.simple_supabase import simple_supabase
 from .auth import token_required
 import pandas as pd
 import io
@@ -28,7 +28,7 @@ def get_leads():
         offset = (page - 1) * limit
         
         # Construir query
-        client = supabase_service.client
+        client = simple_supabase.client
         query = client.table('leads').select('*', count='exact')
         
         # Aplicar filtros
@@ -85,7 +85,7 @@ def create_lead():
         }
         
         # Inserir no banco
-        client = supabase_service.client
+        client = simple_supabase.client
         result = client.table('leads').insert(lead_data).execute()
         
         return jsonify({
@@ -102,7 +102,7 @@ def create_lead():
 def get_lead(lead_id):
     """Obter detalhes de um lead específico"""
     try:
-        client = supabase_service.client
+        client = simple_supabase.client
         result = client.table('leads').select('*').eq('id', lead_id).single().execute()
         
         if not result.data:
@@ -133,7 +133,7 @@ def update_lead(lead_id):
                 update_data[field] = data[field]
         
         # Atualizar no banco
-        client = supabase_service.client
+        client = simple_supabase.client
         result = client.table('leads').update(update_data).eq('id', lead_id).execute()
         
         if not result.data:
@@ -201,7 +201,7 @@ def upload_leads_csv():
                 errors.append(f"Linha {index + 1}: {str(e)}")
         
         # Inserir leads no banco
-        client = supabase_service.client
+        client = simple_supabase.client
         created_count = 0
         
         for lead_data in leads_data:
@@ -242,7 +242,7 @@ def manual_qualification(lead_id):
             'created_at': datetime.utcnow().isoformat()
         }
         
-        client = supabase_service.client
+        client = simple_supabase.client
         
         # Inserir qualificação
         client.table('qualificacoes').insert(qualification_data).execute()

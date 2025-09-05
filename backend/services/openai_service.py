@@ -234,63 +234,6 @@ def test_scoring_system():
     """Testar sistema de scoring unificado sem OpenAI API"""
     print("🧪 Testando Sistema de Scoring Unificado (OpenAI-only)")
     
-    # Criar instância mock para teste
-    class MockOpenAIService:
-        def __init__(self):
-            self.qualification_threshold = 70
-            
-        def calculate_lead_score(self, answers):
-            score = 0
-            patrimonio_scores = {'A': 10, 'B': 20, 'C': 25, 'D': 30}
-            objetivo_scores = {'A': 25, 'B': 20, 'C': 15, 'D': 10}
-            urgencia_scores = {'A': 25, 'B': 20, 'C': 15, 'D': 5}
-            interesse_scores = {'A': 20, 'B': 15, 'C': 10, 'D': 0}
-            
-            score += patrimonio_scores.get(answers.get('patrimonio', ''), 0)
-            score += objetivo_scores.get(answers.get('objetivo', ''), 0)
-            score += urgencia_scores.get(answers.get('urgencia', ''), 0)
-            score += interesse_scores.get(answers.get('interesse', ''), 0)
-            
-            print(f"  Breakdown: P={patrimonio_scores.get(answers.get('patrimonio', ''), 0)} + O={objetivo_scores.get(answers.get('objetivo', ''), 0)} + U={urgencia_scores.get(answers.get('urgencia', ''), 0)} + I={interesse_scores.get(answers.get('interesse', ''), 0)} = {score}")
-            return score
     
-    mock_service = MockOpenAIService()
-    
-    # Cenário 1: Cliente Premium (score alto)
-    answers_premium = {
-        'patrimonio': 'D',  # Mais de R$ 500k = 30pts
-        'objetivo': 'A',    # Aposentadoria = 25pts
-        'urgencia': 'A',    # Esta semana = 25pts
-        'interesse': 'A'    # Sim, urgente = 20pts
-    }
-    
-    score_premium = mock_service.calculate_lead_score(answers_premium)
-    print(f"Cliente Premium: {score_premium}/100 - {'✅ QUALIFICADO' if score_premium >= 70 else '❌ NÃO QUALIFICADO'}")
-    
-    # Cenário 2: Cliente Médio
-    answers_medio = {
-        'patrimonio': 'B',  # R$ 50-200k = 20pts
-        'objetivo': 'B',    # Crescimento = 20pts
-        'urgencia': 'B',    # Este mês = 20pts
-        'interesse': 'B'    # Sim, possível = 15pts
-    }
-    
-    score_medio = mock_service.calculate_lead_score(answers_medio)
-    print(f"Cliente Médio: {score_medio}/100 - {'✅ QUALIFICADO' if score_medio >= 70 else '❌ NÃO QUALIFICADO'}")
-    
-    # Cenário 3: Cliente Baixo
-    answers_baixo = {
-        'patrimonio': 'A',  # Até R$ 50k = 10pts
-        'objetivo': 'D',    # Especulação = 10pts
-        'urgencia': 'D',    # Sem pressa = 5pts
-        'interesse': 'D'    # Não = 0pts
-    }
-    
-    score_baixo = mock_service.calculate_lead_score(answers_baixo)
-    print(f"Cliente Baixo: {score_baixo}/100 - {'✅ QUALIFICADO' if score_baixo >= 70 else '❌ NÃO QUALIFICADO'}")
-    
-    print(f"\n✅ Sistema de scoring funcionando - Threshold: {mock_service.qualification_threshold}")
-    return True
-
 if __name__ == "__main__":
     test_scoring_system()

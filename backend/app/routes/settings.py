@@ -1,37 +1,36 @@
-from flask import Blueprint, request, jsonify
-from flask_jwt_extended import jwt_required, get_jwt
+from flask import Blueprint, request, jsonify, g, current_app
+from services.auth_service import require_auth
 import structlog
-from services.supabase_service import supabase_service
+from services.simple_supabase import simple_supabase
+from datetime import datetime
 
 logger = structlog.get_logger()
 
 settings_bp = Blueprint('settings', __name__)
 
-def get_current_user_info():
-    """Extrair informações do usuário atual do JWT"""
-    claims = get_jwt()
-    return {
-        'user_id': claims.get('user_id'),
-        'tenant_id': claims.get('tenant_id'),
-        'role': claims.get('role'),
-        'email': claims.get('email')
-    }
+# Função removida - usando g.* diretamente
 
-@settings_bp.route('/', methods=['GET'])
-@jwt_required()
+@settings_bp.route('/api/settings', methods=['GET'])
+@require_auth()
 def get_tenant_settings():
     """Obter configurações do tenant"""
     try:
-        user_info = get_current_user_info()
-        tenant_id = user_info['tenant_id']
+        tenant_id = g.tenant_id
         
         # Buscar tenant e configurações
-        tenant_data = supabase_service.client.table('tenants')\
+        logger.info("Buscando configurações do tenant", tenant_id=tenant_id)
+        
+        tenant_data = simple_supabase.client.table('tenants')\
             .select('*')\
             .eq('id', tenant_id)\
             .execute()
         
+        logger.debug("Resultado da busca do tenant", 
+                    data_count=len(tenant_data.data) if tenant_data.data else 0,
+                    tenant_id=tenant_id)
+        
         if not tenant_data.data:
+            logger.warning("Tenant não encontrado", tenant_id=tenant_id)
             return jsonify({"error": "Tenant não encontrado"}), 404
         
         tenant = tenant_data.data[0]
@@ -97,27 +96,30 @@ def get_tenant_settings():
         })
         
     except Exception as e:
-        logger.error("Erro ao buscar configurações", error=str(e))
-        return jsonify({"error": "Erro interno do servidor"}), 500
+        logger.error("Erro ao buscar configurações", 
+                    error=str(e), 
+                    tenant_id=g.get('tenant_id'), 
+                    user_id=g.get('user_id'),
+                    traceback=str(e.__class__.__name__))
+        return jsonify({"error": "Erro interno do servidor", "details": str(e) if current_app.debug else None}), 500
 
-@settings_bp.route('/', methods=['PUT'])
-@jwt_required()
-async def update_tenant_settings():
+@settings_bp.route('/api/settings', methods=['PUT'])
+@require_auth()
+def update_tenant_settings():
     """Atualizar configurações do tenant"""
     try:
-        user_info = get_current_user_info()
-        tenant_id = user_info['tenant_id']
-        user_id = user_info['user_id']
+        tenant_id = g.tenant_id
+        user_id = g.user_id
         
         # Verificar permissão (apenas admin pode alterar configurações)
-        if user_info['role'] not in ['admin']:
+        if g.user_role not in ['admin']:
             return jsonify({"error": "Acesso negado. Apenas administradores podem alterar configurações"}), 403
         
         data = request.get_json()
         new_settings = data.get('settings', {})
         
         # Buscar configurações atuais
-        tenant_data = supabase_service.client.table('tenants')\
+        tenant_data = simple_supabase.client.table('tenants')\
             .select('settings')\
             .eq('id', tenant_id)\
             .execute()
@@ -131,23 +133,23 @@ async def update_tenant_settings():
         updated_settings = {**current_settings, **new_settings}
         
         # Atualizar no banco
-        supabase_service.client.table('tenants')\
+        simple_supabase.client.table('tenants')\
             .update({'settings': updated_settings})\
             .eq('id', tenant_id)\
             .execute()
         
-        # Log de auditoria
-        await supabase_service.log_audit_event(
-            tenant_id=tenant_id,
-            user_id=user_id,
-            action="update_settings",
-            resource_type="tenant",
-            resource_id=tenant_id,
-            details={
-                "updated_keys": list(new_settings.keys()),
-                "settings_diff": new_settings
-            }
-        )
+        # Log de auditoria (comentado por enquanto)
+        # await simple_supabase.log_audit_event(
+        #     tenant_id=tenant_id,
+        #     user_id=user_id,
+        #     action="update_settings",
+        #     resource_type="tenant",
+        #     resource_id=tenant_id,
+        #     details={
+        #         "updated_keys": list(new_settings.keys()),
+        #         "settings_diff": new_settings
+        #     }
+        # )
         
         logger.info("Configurações atualizadas", 
                    tenant_id=tenant_id,
@@ -164,16 +166,15 @@ async def update_tenant_settings():
         logger.error("Erro ao atualizar configurações", error=str(e))
         return jsonify({"error": "Erro interno do servidor"}), 500
 
-@settings_bp.route('/ai-prompts', methods=['GET'])
-@jwt_required()
+@settings_bp.route('/api/settings/ai-prompts', methods=['GET'])
+@require_auth()
 def get_ai_prompts():
     """Obter prompts de IA personalizados"""
     try:
-        user_info = get_current_user_info()
-        tenant_id = user_info['tenant_id']
+        tenant_id = g.tenant_id
         
         # Buscar configurações
-        tenant_data = supabase_service.client.table('tenants')\
+        tenant_data = simple_supabase.client.table('tenants')\
             .select('settings')\
             .eq('id', tenant_id)\
             .execute()
@@ -234,24 +235,23 @@ REGRAS IMPORTANTES:
         logger.error("Erro ao buscar prompts de IA", error=str(e))
         return jsonify({"error": "Erro interno do servidor"}), 500
 
-@settings_bp.route('/ai-prompts', methods=['PUT'])
-@jwt_required()
-async def update_ai_prompts():
+@settings_bp.route('/api/settings/ai-prompts', methods=['PUT'])
+@require_auth()
+def update_ai_prompts():
     """Atualizar prompts de IA personalizados"""
     try:
-        user_info = get_current_user_info()
-        tenant_id = user_info['tenant_id']
-        user_id = user_info['user_id']
+        tenant_id = g.tenant_id
+        user_id = g.user_id
         
         # Verificar permissão
-        if user_info['role'] not in ['admin']:
+        if g.user_role not in ['admin']:
             return jsonify({"error": "Acesso negado"}), 403
         
         data = request.get_json()
         new_prompts = data.get('prompts', {})
         
         # Buscar configurações atuais
-        tenant_data = supabase_service.client.table('tenants')\
+        tenant_data = simple_supabase.client.table('tenants')\
             .select('settings')\
             .eq('id', tenant_id)\
             .execute()
@@ -264,20 +264,20 @@ async def update_ai_prompts():
         current_settings['ai_config'] = ai_config
         
         # Salvar no banco
-        supabase_service.client.table('tenants')\
+        simple_supabase.client.table('tenants')\
             .update({'settings': current_settings})\
             .eq('id', tenant_id)\
             .execute()
         
-        # Log de auditoria
-        await supabase_service.log_audit_event(
-            tenant_id=tenant_id,
-            user_id=user_id,
-            action="update_ai_prompts",
-            resource_type="tenant",
-            resource_id=tenant_id,
-            details={"prompt_keys": list(new_prompts.keys())}
-        )
+        # Log de auditoria (comentado por enquanto)
+        # await simple_supabase.log_audit_event(
+        #     tenant_id=tenant_id,
+        #     user_id=user_id,
+        #     action="update_ai_prompts",
+        #     resource_type="tenant",
+        #     resource_id=tenant_id,
+        #     details={"prompt_keys": list(new_prompts.keys())}
+        # )
         
         logger.info("Prompts de IA atualizados", tenant_id=tenant_id)
         
@@ -290,20 +290,19 @@ async def update_ai_prompts():
         logger.error("Erro ao atualizar prompts", error=str(e))
         return jsonify({"error": "Erro interno do servidor"}), 500
 
-@settings_bp.route('/users', methods=['GET'])
-@jwt_required()
+@settings_bp.route('/api/settings/users', methods=['GET'])
+@require_auth()
 def list_tenant_users():
     """Listar usuários do tenant"""
     try:
-        user_info = get_current_user_info()
-        tenant_id = user_info['tenant_id']
+        tenant_id = g.tenant_id
         
         # Verificar permissão
-        if user_info['role'] not in ['admin', 'closer']:
+        if g.user_role not in ['admin', 'closer']:
             return jsonify({"error": "Acesso negado"}), 403
         
         # Buscar usuários
-        users_data = supabase_service.client.table('users')\
+        users_data = simple_supabase.client.table('users')\
             .select('id, email, name, role, created_at')\
             .eq('tenant_id', tenant_id)\
             .order('created_at', desc=True)\
@@ -318,15 +317,15 @@ def list_tenant_users():
         logger.error("Erro ao listar usuários", error=str(e))
         return jsonify({"error": "Erro interno do servidor"}), 500
 
-@settings_bp.route('/integrations', methods=['GET'])
-@jwt_required()
+@settings_bp.route('/api/settings/integrations', methods=['GET'])
+@require_auth()
 def get_integrations_status():
     """Verificar status das integrações"""
     try:
-        user_info = get_current_user_info()
+        # Usar g.* diretamente
         
         # Verificar permissão
-        if user_info['role'] not in ['admin']:
+        if g.user_role not in ['admin']:
             return jsonify({"error": "Acesso negado"}), 403
         
         from flask import current_app
@@ -368,6 +367,54 @@ def get_integrations_status():
         logger.error("Erro ao verificar integrações", error=str(e))
         return jsonify({"error": "Erro interno do servidor"}), 500
 
+@settings_bp.route('/api/settings/health', methods=['GET'])
+@require_auth()
+def settings_health_check():
+    """Diagnóstico da funcionalidade de configurações"""
+    try:
+        tenant_id = g.tenant_id
+        user_id = g.user_id
+        user_role = g.user_role
+        
+        # Verificar conectividade com Supabase
+        simple_supabase._ensure_client()
+        
+        # Testar busca do tenant
+        tenant_data = simple_supabase.client.table('tenants')\
+            .select('id, name, created_at')\
+            .eq('id', tenant_id)\
+            .execute()
+        
+        # Verificar se usuário existe
+        user_data = simple_supabase.client.table('users')\
+            .select('id, email, role')\
+            .eq('id', user_id)\
+            .execute()
+        
+        return jsonify({
+            "status": "healthy",
+            "timestamp": datetime.now().isoformat(),
+            "auth_context": {
+                "user_id": user_id,
+                "tenant_id": tenant_id,
+                "user_role": user_role
+            },
+            "database_checks": {
+                "tenant_found": bool(tenant_data.data),
+                "user_found": bool(user_data.data),
+                "tenant_data": tenant_data.data[0] if tenant_data.data else None,
+                "user_data": user_data.data[0] if user_data.data else None
+            },
+            "supabase_connection": "ok"
+        })
+        
+    except Exception as e:
+        logger.error("Erro no health check", error=str(e))
+        return jsonify({
+            "status": "unhealthy",
+            "error": str(e),
+            "timestamp": datetime.now().isoformat()
+        }), 500
 
 
 

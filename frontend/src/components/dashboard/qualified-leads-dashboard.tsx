@@ -32,11 +32,13 @@ export default function QualifiedLeadsDashboard() {
   const fetchData = async () => {
     try {
       setLoading(true);
+      setError(null);
       
-      // Buscar leads
-      const leadsResponse = await fetch('/api/leads');
-      if (!leadsResponse.ok) throw new Error('Erro ao carregar leads');
-      const leadsData = await leadsResponse.json();
+      console.log('🔄 Carregando dados do dashboard...');
+      
+      // Buscar leads usando API client
+      const leadsData = await api.getLeads();
+      console.log('✅ Dados carregados com sucesso:', leadsData);
       
       // Filtrar apenas leads qualificados (score >= 70)
       const qualifiedLeads = leadsData.data?.filter((lead: Lead) => lead.score >= 70) || [];
@@ -65,8 +67,68 @@ export default function QualifiedLeadsDashboard() {
         today_qualified: todayQualified
       });
       
+      console.log('📊 Estatísticas calculadas:', {
+        total_leads: totalLeads,
+        qualified_leads: qualifiedCount,
+        qualification_rate: qualificationRate.toFixed(1) + '%'
+      });
+      
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'Erro desconhecido');
+      console.error('❌ Erro ao carregar dados:', err);
+      
+      // Sistema de fallback com dados de demonstração
+      if (err instanceof Error && (err.name === 'AbortError' || err.message.includes('Failed to fetch'))) {
+        console.log('🔄 Backend offline - usando dados de demonstração');
+        
+        // Dados de demonstração para quando o backend estiver offline
+        const mockLeads: Lead[] = [
+          {
+            id: 'demo-1',
+            name: 'João Silva',
+            phone: '+55 11 99999-1234',
+            email: 'joao@exemplo.com',
+            origem: 'WhatsApp',
+            status: 'qualified',
+            score: 95,
+            created_at: new Date().toISOString(),
+            qualification_completed_at: new Date().toISOString()
+          },
+          {
+            id: 'demo-2', 
+            name: 'Maria Santos',
+            phone: '+55 11 88888-5678',
+            email: 'maria@exemplo.com',
+            origem: 'Site',
+            status: 'qualified',
+            score: 87,
+            created_at: new Date(Date.now() - 86400000).toISOString(), // 1 dia atrás
+            qualification_completed_at: new Date(Date.now() - 86400000).toISOString()
+          },
+          {
+            id: 'demo-3',
+            name: 'Carlos Oliveira', 
+            phone: '+55 11 77777-9012',
+            origem: 'Indicação',
+            status: 'qualified',
+            score: 78,
+            created_at: new Date(Date.now() - 172800000).toISOString(), // 2 dias atrás
+            qualification_completed_at: new Date(Date.now() - 172800000).toISOString()
+          }
+        ];
+        
+        setLeads(mockLeads);
+        setStats({
+          total_leads: 25,
+          qualified_leads: 3,
+          qualification_rate: 12.0,
+          avg_score: 87,
+          today_qualified: 1
+        });
+        
+        setError('⚠️ Conectado em modo demonstração (backend offline)');
+      } else {
+        setError(err instanceof Error ? err.message : 'Erro desconhecido ao carregar dados');
+      }
     } finally {
       setLoading(false);
     }
@@ -100,16 +162,17 @@ export default function QualifiedLeadsDashboard() {
     );
   }
 
-  if (error) {
+  // Não mostrar tela de erro se temos dados de fallback
+  if (error && leads.length === 0 && !stats) {
     return (
       <div className="p-4 bg-red-100 border border-red-400 text-red-700 rounded">
-        <h3 className="font-bold">Erro ao carregar dados</h3>
+        <h3 className="font-bold">❌ Erro ao carregar dados</h3>
         <p>{error}</p>
         <button 
           onClick={fetchData}
           className="mt-2 px-4 py-2 bg-red-600 text-white rounded hover:bg-red-700"
         >
-          Tentar novamente
+          🔄 Tentar novamente
         </button>
       </div>
     );
@@ -119,12 +182,20 @@ export default function QualifiedLeadsDashboard() {
     <div className="space-y-6">
       {/* Header */}
       <div className="flex justify-between items-center">
-        <h1 className="text-3xl font-bold text-gray-900">🎯 Leads Qualificados</h1>
+        <div>
+          <h1 className="text-3xl font-bold text-gray-900">🎯 Leads Qualificados</h1>
+          {error && error.includes('demonstração') && (
+            <p className="text-sm text-orange-600 mt-1">
+              ⚠️ Modo demonstração - Backend offline
+            </p>
+          )}
+        </div>
         <button 
           onClick={fetchData}
           className="px-4 py-2 bg-blue-600 text-white rounded hover:bg-blue-700 flex items-center"
+          disabled={loading}
         >
-          🔄 Atualizar
+          {loading ? '⏳ Carregando...' : '🔄 Atualizar'}
         </button>
       </div>
 

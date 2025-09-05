@@ -22,7 +22,7 @@ export default function ConversationPage() {
   const [sending, setSending] = useState(false)
   const [humanTakeover, setHumanTakeover] = useState(false)
   
-  const messagesEndRef = useRef<HTMLDivElement>(null)
+  const messagesEndRef = useRef<HTMLDivElement | null>(null)
 
   useEffect(() => {
     if (sessionId) {
